@@ -15,6 +15,8 @@ data class Lesson(
     val addedAt: Long,
     val transcript: String,
     val audioDownloaded: Boolean,
+    /** 逐句时间戳（timestamps.json 原文），没有则为空 */
+    val timestamps: String? = null,
 ) {
     val code: String get() = "%s-%03d".format(level, number)
 }

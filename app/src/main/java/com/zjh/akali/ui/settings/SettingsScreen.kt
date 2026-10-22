@@ -99,7 +99,12 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
                     }
                     is ImportUiState.Finished -> {
                         Spacer(Modifier.height(8.dp))
-                        Text("导入 ${s.result.imported} 课，跳过 ${s.result.skipped} 课（已存在）", color = colors.secondary)
+                        Text(
+                            "导入 ${s.result.imported} 课" +
+                                (if (s.result.updated > 0) "，补充时间戳 ${s.result.updated} 课" else "") +
+                                "，跳过 ${s.result.skipped} 课（已存在）",
+                            color = colors.secondary,
+                        )
                         if (s.result.failed.isNotEmpty()) {
                             Text("失败 ${s.result.failed.size} 课：", color = colors.error)
                             s.result.failed.forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = colors.error) }

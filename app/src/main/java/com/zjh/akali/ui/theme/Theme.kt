@@ -10,46 +10,46 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
-val BiliPink = Color(0xFFFB7299)
-val BiliBlue = Color(0xFF23ADE5)
+val Indigo = Color(0xFF4F5BD5)
+val Teal = Color(0xFF1E9E9A)
 
 private val LightColors = lightColorScheme(
-    primary = BiliPink,
+    primary = Indigo,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFE3EC),
-    onPrimaryContainer = Color(0xFF9C2B52),
-    secondary = BiliBlue,
+    primaryContainer = Color(0xFFE1E4FB),
+    onPrimaryContainer = Color(0xFF232B8F),
+    secondary = Teal,
     onSecondary = Color.White,
-    secondaryContainer = Color(0xFFDDF3FC),
-    onSecondaryContainer = Color(0xFF0B6A93),
-    background = Color(0xFFF4F5F7),
-    onBackground = Color(0xFF18191C),
+    secondaryContainer = Color(0xFFD6F1EF),
+    onSecondaryContainer = Color(0xFF0B5F5C),
+    background = Color(0xFFF3F4F9),
+    onBackground = Color(0xFF181A24),
     surface = Color.White,
-    onSurface = Color(0xFF18191C),
-    surfaceVariant = Color(0xFFEDEEF0),
-    onSurfaceVariant = Color(0xFF61666D),
-    outline = Color(0xFFC9CCD0),
-    outlineVariant = Color(0xFFE3E5E7),
+    onSurface = Color(0xFF181A24),
+    surfaceVariant = Color(0xFFE9EAF2),
+    onSurfaceVariant = Color(0xFF5E6275),
+    outline = Color(0xFFC6C9D6),
+    outlineVariant = Color(0xFFE1E3EC),
     error = Color(0xFFE5484D),
 )
 
 private val DarkColors = darkColorScheme(
-    primary = BiliPink,
-    onPrimary = Color(0xFF3B0A1D),
-    primaryContainer = Color(0xFF4A2432),
-    onPrimaryContainer = Color(0xFFFFD9E4),
-    secondary = BiliBlue,
-    onSecondary = Color(0xFF00232F),
-    secondaryContainer = Color(0xFF123B4D),
-    onSecondaryContainer = Color(0xFFCBEEFB),
-    background = Color(0xFF17181A),
-    onBackground = Color(0xFFE6E7E9),
-    surface = Color(0xFF232427),
-    onSurface = Color(0xFFE6E7E9),
-    surfaceVariant = Color(0xFF2E3033),
-    onSurfaceVariant = Color(0xFFA5A8AD),
-    outline = Color(0xFF4A4D52),
-    outlineVariant = Color(0xFF34363A),
+    primary = Color(0xFF8C96F2),
+    onPrimary = Color(0xFF101450),
+    primaryContainer = Color(0xFF2B3070),
+    onPrimaryContainer = Color(0xFFDDE0FF),
+    secondary = Color(0xFF4CC3BE),
+    onSecondary = Color(0xFF00302E),
+    secondaryContainer = Color(0xFF17413F),
+    onSecondaryContainer = Color(0xFFC7F0EE),
+    background = Color(0xFF14151C),
+    onBackground = Color(0xFFE5E6EE),
+    surface = Color(0xFF1E2029),
+    onSurface = Color(0xFFE5E6EE),
+    surfaceVariant = Color(0xFF292C38),
+    onSurfaceVariant = Color(0xFFA3A7B8),
+    outline = Color(0xFF474A5A),
+    outlineVariant = Color(0xFF323544),
     error = Color(0xFFFF6B70),
 )
 

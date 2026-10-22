@@ -27,6 +27,9 @@ interface LessonDao {
     @Query("UPDATE lessons SET audioDownloaded = :downloaded WHERE id = :id")
     suspend fun setAudioDownloaded(id: Long, downloaded: Boolean)
 
+    @Query("UPDATE lessons SET timestamps = :json WHERE id = :id")
+    suspend fun setTimestamps(id: Long, json: String)
+
     @Query("UPDATE lessons SET sourceUrl = :url WHERE id = :id")
     suspend fun setSourceUrl(id: Long, url: String)
 

@@ -1,5 +1,7 @@
 package com.zjh.akali.ui.player
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,12 +12,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
@@ -37,18 +45,22 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zjh.akali.data.PlayMode
+import com.zjh.akali.data.Sentence
+import com.zjh.akali.data.Timestamps
 import com.zjh.akali.ui.MainViewModel
 import com.zjh.akali.ui.formatTime
 
@@ -71,6 +83,9 @@ fun PlayerScreen(vm: MainViewModel, onBack: () -> Unit) {
     val showTranscript by vm.showTranscript.collectAsStateWithLifecycle()
     val lesson = lessons.orEmpty().firstOrNull { it.id == ps.currentLessonId }
     val colors = MaterialTheme.colorScheme
+    val sentences = remember(lesson?.id, lesson?.timestamps) { Timestamps.parse(lesson?.timestamps) }
+    LaunchedEffect(lesson?.id, sentences) { vm.player.setSentences(sentences) }
+    val currentIndex = Timestamps.indexAt(sentences, ps.positionMs)
 
     Scaffold(
         containerColor = colors.background,
@@ -112,7 +127,14 @@ fun PlayerScreen(vm: MainViewModel, onBack: () -> Unit) {
                                 Text(if (showTranscript) "隐藏" else "显示")
                             }
                         }
-                        if (showTranscript) {
+                        if (showTranscript && sentences.isNotEmpty()) {
+                            SentenceList(
+                                sentences = sentences,
+                                currentIndex = currentIndex,
+                                onClick = vm.player::playSentence,
+                                modifier = Modifier.weight(1f),
+                            )
+                        } else if (showTranscript) {
                             Text(
                                 lesson.transcript.ifBlank { "（这一课没有文稿）" },
                                 modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 12.dp),
@@ -143,6 +165,19 @@ fun PlayerScreen(vm: MainViewModel, onBack: () -> Unit) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(formatTime((dragging ?: ps.positionMs.toFloat()).toLong()), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
                 Text(formatTime(ps.durationMs), style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+            }
+
+            if (sentences.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                    LabeledButton(label = "上一句", onClick = { vm.player.stepSentence(-1) }) {
+                        Icon(Icons.Rounded.FastRewind, "上一句")
+                    }
+                    LoopToggle(on = ps.loopSentence, onClick = vm.player::toggleSentenceLoop)
+                    LabeledButton(label = "下一句", onClick = { vm.player.stepSentence(1) }) {
+                        Icon(Icons.Rounded.FastForward, "下一句")
+                    }
+                }
             }
 
             Spacer(Modifier.height(8.dp))
@@ -182,5 +217,58 @@ private fun LabeledButton(label: String, onClick: () -> Unit, content: @Composab
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) { content() }
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SentenceList(sentences: List<Sentence>, currentIndex: Int, onClick: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val listState = rememberLazyListState()
+    // 当前句变了就滚动跟随，放在第二行，上面留一句上下文；用户正在手动滑动时不打断
+    LaunchedEffect(currentIndex) {
+        if (currentIndex >= 0 && !listState.isScrollInProgress) {
+            listState.animateScrollToItem((currentIndex - 1).coerceAtLeast(0))
+        }
+    }
+    LazyColumn(state = listState, modifier = modifier.fillMaxWidth()) {
+        itemsIndexed(sentences) { i, s ->
+            val newParagraph = i > 0 && sentences[i - 1].paragraph != s.paragraph
+            if (newParagraph) Spacer(Modifier.height(10.dp))
+            Text(
+                s.text,
+                fontSize = 18.sp,
+                lineHeight = 28.sp,
+                fontWeight = if (i == currentIndex) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (i == currentIndex) colors.onSurface else colors.onSurface.copy(alpha = 0.72f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (i == currentIndex) colors.primary.copy(alpha = 0.14f) else colors.surface)
+                    .clickable { onClick(i) }
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            )
+        }
+        item { Spacer(Modifier.height(12.dp)) }
+    }
+}
+
+@Composable
+private fun LoopToggle(on: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Surface(
+            shape = CircleShape,
+            color = if (on) colors.primary else colors.surface,
+            modifier = Modifier.size(48.dp),
+        ) {
+            IconButton(onClick = onClick) {
+                Icon(Icons.Rounded.RepeatOne, if (on) "关闭单句循环" else "开启单句循环", tint = if (on) colors.onPrimary else colors.primary)
+            }
+        }
+        Text(
+            if (on) "循环中" else "单句循环",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (on) colors.primary else colors.onSurfaceVariant,
+        )
     }
 }

@@ -16,6 +16,8 @@ sealed interface AddResult {
     data class AlreadyExists(val lesson: Lesson) : AddResult
 }
 
+enum class ImportOutcome { Imported, Updated, Skipped }
+
 class LessonRepository(
     private val dao: LessonDao,
     private val files: LessonFiles,
@@ -80,26 +82,37 @@ class LessonRepository(
 
     suspend fun storageBytes(): Long = withContext(Dispatchers.IO) { files.totalBytes() }
 
-    /** 导入已有课程；同级别同编号已存在则跳过，返回 false。 */
+    /**
+     * 导入已有课程。同级别同编号已存在则不重复导入；但已存在的课如果还没有时间戳而这次带了，就补上。
+     * [audio] 只在需要新建课程时才会被读取。
+     */
     suspend fun insertImported(
         slug: LessonSlug,
         sourceUrl: String?,
         transcript: String,
         addedAt: Long,
-        audio: InputStream,
-    ): Boolean = withContext(Dispatchers.IO) {
-        if (dao.find(slug.level, slug.number) != null) return@withContext false
+        timestamps: String? = null,
+        audio: () -> InputStream,
+    ): ImportOutcome = withContext(Dispatchers.IO) {
+        val existing = dao.find(slug.level, slug.number)
+        if (existing != null) {
+            if (timestamps != null && existing.timestamps == null) {
+                dao.setTimestamps(existing.id, timestamps)
+                return@withContext ImportOutcome.Updated
+            }
+            return@withContext ImportOutcome.Skipped
+        }
         val id = dao.insert(
             Lesson(
                 level = slug.level, number = slug.number, title = slug.title, sourceUrl = sourceUrl,
-                addedAt = addedAt, transcript = transcript, audioDownloaded = false,
+                addedAt = addedAt, transcript = transcript, audioDownloaded = false, timestamps = timestamps,
             ),
         )
-        if (id < 0) return@withContext false
+        if (id < 0) return@withContext ImportOutcome.Skipped
         try {
             val dest = files.audio(id)
             dest.parentFile?.mkdirs()
-            audio.use { input -> dest.outputStream().use { input.copyTo(it) } }
+            audio().use { input -> dest.outputStream().use { input.copyTo(it) } }
             if (dest.length() == 0L) throw IOException("音频文件是空的")
         } catch (e: Exception) {
             dao.delete(listOf(id))
@@ -107,7 +120,7 @@ class LessonRepository(
             throw e
         }
         dao.setAudioDownloaded(id, true)
-        true
+        ImportOutcome.Imported
     }
 
     fun audioFile(id: Long) = files.audio(id)

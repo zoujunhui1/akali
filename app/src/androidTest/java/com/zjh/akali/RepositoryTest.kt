@@ -143,7 +143,7 @@ class RepositoryTest {
     @Test
     fun redownloadWithoutSourceUrlFails() = runBlocking {
         val r = repo()
-        r.insertImported(com.zjh.akali.elllo.parseSlug("B2-001-Test")!!, null, "t", 1L, audio.inputStream())
+        r.insertImported(com.zjh.akali.elllo.parseSlug("B2-001-Test")!!, null, "t", 1L) { audio.inputStream() }
         val id = db.lessonDao().find("B2", 1)!!.id
         r.clearAudio(listOf(id))
         try {
@@ -198,5 +198,30 @@ class RepositoryTest {
         val second = importer.import(DocumentFile.fromFile(src))
         assertEquals(0, second.imported)
         assertEquals(2, second.skipped)
+    }
+
+    @Test
+    fun importAddsTimestampsToLessonImportedEarlier() = runBlocking {
+        val src = File(root, "src2").also { it.mkdirs() }
+        val dir = File(src, "B2-001-STACY-FIRST-JOB").apply {
+            mkdirs()
+            File(this, "a.mp3").writeBytes(audio)
+            File(this, "transcript.txt").writeText("Hi Stacy. Bye.")
+        }
+        val importer = FolderImporter(context, repo())
+        assertEquals(1, importer.import(DocumentFile.fromFile(src)).imported)
+        assertNull(db.lessonDao().find("B2", 1)!!.timestamps)
+
+        File(dir, "timestamps.json").writeText(
+            """{"version":1,"sentences":[{"paragraph":0,"text":"Hi Stacy.","start":0.0,"end":1.5},{"paragraph":0,"text":"Bye.","start":1.6,"end":2.5}]}""",
+        )
+        val second = importer.import(DocumentFile.fromFile(src))
+        assertEquals(0, second.imported)
+        assertEquals(1, second.updated)
+        assertEquals(2, com.zjh.akali.data.Timestamps.parse(db.lessonDao().find("B2", 1)!!.timestamps).size)
+
+        val third = importer.import(DocumentFile.fromFile(src))
+        assertEquals(0, third.updated)
+        assertEquals(1, third.skipped)
     }
 }

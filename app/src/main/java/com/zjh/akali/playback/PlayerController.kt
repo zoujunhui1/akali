@@ -2,15 +2,19 @@ package com.zjh.akali.playback
 
 import android.content.ComponentName
 import android.content.Context
+import android.os.Bundle
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.zjh.akali.data.PlayMode
 import com.zjh.akali.data.Prefs
+import com.zjh.akali.data.Sentence
+import com.zjh.akali.data.Timestamps
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,6 +37,8 @@ data class PlayerUiState(
     val durationMs: Long = 0,
     val mode: PlayMode = PlayMode.LOOP_ALL,
     val speed: Float = 1f,
+    /** 单句循环是否开启 */
+    val loopSentence: Boolean = false,
 )
 
 /** 界面这一侧的播放器遥控器：通过 MediaController 连接 PlaybackService。 */
@@ -43,6 +49,9 @@ class PlayerController(private val context: Context, private val prefs: Prefs) {
 
     private var controller: MediaController? = null
     private val pending = ArrayDeque<(MediaController) -> Unit>()
+
+    /** 当前这课的逐句时间戳，由界面在课程变化时设置；没有则为空。 */
+    private var sentences: List<Sentence> = emptyList()
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) = publish(player)
@@ -63,7 +72,7 @@ class PlayerController(private val context: Context, private val prefs: Prefs) {
 
         scope.launch {
             while (true) {
-                delay(250)
+                delay(120)
                 val c = controller ?: continue
                 if (c.isPlaying) _state.update { it.copy(positionMs = c.currentPosition) }
             }
@@ -71,10 +80,14 @@ class PlayerController(private val context: Context, private val prefs: Prefs) {
     }
 
     private fun publish(p: Player) {
+        val lessonId = p.currentMediaItem?.mediaId?.toLongOrNull()
         _state.update {
+            val changed = lessonId != it.currentLessonId
+            if (changed) sentences = emptyList() // 换课：循环已由服务清掉，句子等界面重新设置
             it.copy(
+                loopSentence = it.loopSentence && !changed,
                 connected = true,
-                currentLessonId = p.currentMediaItem?.mediaId?.toLongOrNull(),
+                currentLessonId = lessonId,
                 playWhenReady = p.playWhenReady && p.playbackState != Player.STATE_ENDED,
                 isPlaying = p.isPlaying,
                 positionMs = p.currentPosition,
@@ -122,8 +135,64 @@ class PlayerController(private val context: Context, private val prefs: Prefs) {
     }
 
     fun seekTo(ms: Long) = withController {
-        it.seekTo(ms)
+        var target = ms
+        if (_state.value.loopSentence) {
+            // 循环开着时，拖到哪就循环哪一句；落在两句之间的空隙就取下一句
+            var i = Timestamps.indexAt(sentences, ms)
+            if (i >= 0 && ms > sentences[i].endMs && i + 1 < sentences.size) i++
+            sentences.getOrNull(i)?.let { s ->
+                target = if (ms !in s.startMs..s.endMs) s.startMs else ms
+                sendLoop(it, s)
+            }
+        }
+        it.seekTo(target)
         publish(it)
+    }
+
+    fun setSentences(list: List<Sentence>) {
+        sentences = list
+    }
+
+    private fun sendLoop(c: MediaController, s: Sentence?) {
+        val args = Bundle().apply {
+            putLong(ARG_START_MS, s?.startMs ?: 0L)
+            putLong(ARG_END_MS, s?.endMs ?: 0L)
+        }
+        c.sendCustomCommand(SessionCommand(COMMAND_LOOP_RANGE, Bundle.EMPTY), args)
+    }
+
+    /** 开/关单句循环：开启时循环当前正在播的这一句。 */
+    fun toggleSentenceLoop() = withController { c ->
+        if (_state.value.loopSentence) {
+            sendLoop(c, null)
+            _state.update { it.copy(loopSentence = false) }
+            return@withController
+        }
+        val s = sentences.getOrNull(Timestamps.indexAt(sentences, c.currentPosition)) ?: return@withController
+        if (c.currentPosition >= s.endMs - 100) c.seekTo(s.startMs)
+        sendLoop(c, s)
+        _state.update { it.copy(loopSentence = true) }
+        publish(c)
+    }
+
+    /** 从第 index 句开头播放；循环开着就改循环这一句。 */
+    fun playSentence(index: Int) = withController { c ->
+        val s = sentences.getOrNull(index) ?: return@withController
+        if (_state.value.loopSentence) sendLoop(c, s)
+        c.seekTo(s.startMs)
+        c.play()
+        publish(c)
+    }
+
+    /** delta = -1 上一句（这句已播过一会儿则先回到本句开头），+1 下一句。 */
+    fun stepSentence(delta: Int) = withController { c ->
+        val i = Timestamps.indexAt(sentences, c.currentPosition)
+        if (i < 0) return@withController
+        val target = when {
+            delta < 0 && c.currentPosition - sentences[i].startMs > 1500 -> i
+            else -> (i + delta).coerceIn(0, sentences.lastIndex)
+        }
+        playSentence(target)
     }
 
     fun next() = withController {

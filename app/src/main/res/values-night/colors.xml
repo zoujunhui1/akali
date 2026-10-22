@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="akali_background">#17181A</color>
-    <color name="akali_pink">#FB7299</color>
+    <color name="akali_background">#14151C</color>
+    <color name="akali_primary">#4F5BD5</color>
 </resources>
