@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="akali_background">#F3F4F9</color>
-    <color name="akali_primary">#4F5BD5</color>
+    <color name="akali_background">#F5F2F7</color>
+    <color name="akali_primary">#C8283D</color>
+    <color name="akali_icon_bg">#1B1722</color>
 </resources>

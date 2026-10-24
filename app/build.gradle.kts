@@ -10,6 +10,11 @@ android {
         version = release(37)
     }
 
+    // 图标：本机有 src/personal（官方头像，不进 git）就用它，否则用仓库里自己画的苦无
+    sourceSets.getByName("main").res.srcDir(
+        if (file("src/personal/res").exists()) "src/personal/res" else "src/default/res",
+    )
+
     defaultConfig {
         applicationId = "com.zjh.akali"
         minSdk = 30

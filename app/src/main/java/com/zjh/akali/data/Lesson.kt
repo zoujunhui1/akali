@@ -17,6 +17,8 @@ data class Lesson(
     val audioDownloaded: Boolean,
     /** 逐句时间戳（timestamps.json 原文），没有则为空 */
     val timestamps: String? = null,
+    /** 飞书词表导出的标记（vocab.json 原文），没有则为空 */
+    val vocab: String? = null,
 ) {
     val code: String get() = "%s-%03d".format(level, number)
 }

@@ -1,6 +1,8 @@
 package com.zjh.akali.ui.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +39,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -54,7 +57,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import com.zjh.akali.data.MarkType
+import com.zjh.akali.data.VocabMark
+import com.zjh.akali.data.VocabMarks
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -85,7 +98,11 @@ fun PlayerScreen(vm: MainViewModel, onBack: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val sentences = remember(lesson?.id, lesson?.timestamps) { Timestamps.parse(lesson?.timestamps) }
     LaunchedEffect(lesson?.id, sentences) { vm.player.setSentences(sentences) }
+    val marks = remember(lesson?.id, lesson?.vocab) { VocabMarks.parse(lesson?.vocab) }
+    var popup by remember { mutableStateOf<List<VocabMark>?>(null) }
     val currentIndex = Timestamps.indexAt(sentences, ps.positionMs)
+
+    popup?.let { MarkSheet(it, onDismiss = { popup = null }) }
 
     Scaffold(
         containerColor = colors.background,
@@ -131,6 +148,8 @@ fun PlayerScreen(vm: MainViewModel, onBack: () -> Unit) {
                             SentenceList(
                                 sentences = sentences,
                                 currentIndex = currentIndex,
+                                marks = marks,
+                                onMarkClick = { popup = it },
                                 onClick = vm.player::playSentence,
                                 modifier = Modifier.weight(1f),
                             )
@@ -220,9 +239,32 @@ private fun LabeledButton(label: String, onClick: () -> Unit, content: @Composab
     }
 }
 
+private data class MarkColors(val word: Color, val phrase: Color, val sentence: Color)
+
 @Composable
-private fun SentenceList(sentences: List<Sentence>, currentIndex: Int, onClick: (Int) -> Unit, modifier: Modifier = Modifier) {
+private fun markColors(): MarkColors =
+    if (isSystemInDarkTheme()) MarkColors(Color(0xFFFFB454), Color(0xFFB59CE6), Color(0xFF4CC3BE))
+    else MarkColors(Color(0xFFE07B00), Color(0xFF7B5CC4), Color(0xFF1E9E9A))
+
+private fun MarkColors.of(type: MarkType) = when (type) {
+    MarkType.Word -> word
+    MarkType.Phrase -> phrase
+    MarkType.Sentence -> sentence
+}
+
+private const val SENTENCE_CHIP = "句型"
+
+@Composable
+private fun SentenceList(
+    sentences: List<Sentence>,
+    currentIndex: Int,
+    marks: List<VocabMark>,
+    onMarkClick: (List<VocabMark>) -> Unit,
+    onClick: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = MaterialTheme.colorScheme
+    val markColors = markColors()
     val listState = rememberLazyListState()
     // 当前句变了就滚动跟随，放在第二行，上面留一句上下文；用户正在手动滑动时不打断
     LaunchedEffect(currentIndex) {
@@ -234,21 +276,92 @@ private fun SentenceList(sentences: List<Sentence>, currentIndex: Int, onClick: 
         itemsIndexed(sentences) { i, s ->
             val newParagraph = i > 0 && sentences[i - 1].paragraph != s.paragraph
             if (newParagraph) Spacer(Modifier.height(10.dp))
+            val inSentence = remember(marks, i, s.text) { VocabMarks.forSentence(marks, i, s.text) }
+            val sentenceMarks = inSentence.filter { it.second.type == MarkType.Sentence }.map { it.second }
+            val text = remember(inSentence, markColors) {
+                buildAnnotatedString {
+                    append(s.text)
+                    // 先铺词组，再铺单词，重叠时单词盖在词组上
+                    inSentence.filter { it.second.type == MarkType.Phrase }.forEach { (r, m) ->
+                        addStyle(SpanStyle(background = markColors.of(m.type).copy(alpha = 0.22f)), r.first, r.last + 1)
+                    }
+                    inSentence.filter { it.second.type == MarkType.Word }.forEach { (r, m) ->
+                        addStyle(SpanStyle(background = markColors.of(m.type).copy(alpha = 0.28f)), r.first, r.last + 1)
+                    }
+                    if (sentenceMarks.isNotEmpty()) {
+                        append("  ")
+                        withStyle(SpanStyle(color = markColors.sentence, fontWeight = FontWeight.Bold, background = markColors.sentence.copy(alpha = 0.16f))) {
+                            append(" $SENTENCE_CHIP ")
+                        }
+                    }
+                }
+            }
+            var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
             Text(
-                s.text,
+                text,
                 fontSize = 18.sp,
                 lineHeight = 28.sp,
                 fontWeight = if (i == currentIndex) FontWeight.SemiBold else FontWeight.Normal,
                 color = if (i == currentIndex) colors.onSurface else colors.onSurface.copy(alpha = 0.72f),
+                onTextLayout = { layout = it },
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
                     .background(if (i == currentIndex) colors.primary.copy(alpha = 0.14f) else colors.surface)
-                    .clickable { onClick(i) }
+                    .pointerInput(inSentence) {
+                        detectTapGestures { pos ->
+                            val offset = layout?.getOffsetForPosition(pos)
+                            val hit = offset?.let { o ->
+                                inSentence.filter { it.second.type != MarkType.Sentence && o in it.first }.map { it.second }
+                            }.orEmpty()
+                            when {
+                                hit.isNotEmpty() -> onMarkClick(hit)
+                                offset != null && offset >= s.text.length + 2 && sentenceMarks.isNotEmpty() -> onMarkClick(sentenceMarks)
+                                else -> onClick(i)
+                            }
+                        }
+                    }
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             )
         }
         item { Spacer(Modifier.height(12.dp)) }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MarkSheet(marks: List<VocabMark>, onDismiss: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val markColors = markColors()
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = colors.surface) {
+        Column(
+            Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            marks.forEach { m ->
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            when (m.type) { MarkType.Word -> "单词"; MarkType.Phrase -> "词组"; MarkType.Sentence -> "句型" },
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = markColors.of(m.type),
+                            modifier = Modifier
+                                .background(markColors.of(m.type).copy(alpha = 0.16f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
+                        if (m.star) Text("⭐重点", style = MaterialTheme.typography.labelMedium)
+                        val dot = when (m.mastery) { "常错" -> "🔴"; "复习中" -> "🟡"; "已掌握" -> "🟢"; else -> "" }
+                        if (dot.isNotEmpty()) Text("$dot ${m.mastery}", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+                    }
+                    Text(m.en, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    if (m.ipa.isNotBlank()) Text(m.ipa, color = colors.onSurfaceVariant)
+                    if (m.zh.isNotBlank()) Text(m.zh, fontSize = 18.sp, color = colors.primary, fontWeight = FontWeight.SemiBold)
+                    if (m.example.isNotBlank()) Text(m.example, fontSize = 16.sp, lineHeight = 24.sp, color = colors.onSurface.copy(alpha = 0.8f))
+                    if (m.note.isNotBlank()) Text("备注：" + m.note, fontSize = 15.sp, lineHeight = 22.sp, color = colors.onSurfaceVariant)
+                }
+            }
+        }
     }
 }
 

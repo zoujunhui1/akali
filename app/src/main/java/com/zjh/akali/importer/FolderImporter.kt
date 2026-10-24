@@ -6,6 +6,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.zjh.akali.data.ImportOutcome
 import com.zjh.akali.data.LessonRepository
 import com.zjh.akali.data.Timestamps
+import com.zjh.akali.data.VocabMarks
 import com.zjh.akali.elllo.parseSlug
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,7 +15,7 @@ data class ImportResult(val imported: Int, val updated: Int, val skipped: Int, v
 
 /**
  * 导入已有课程文件夹。每课一个子文件夹：一个 .mp3（取第一个，不依赖文件名）、
- * transcript.txt、可选的 url.txt 和 timestamps.json。mp4/srt/vtt 等其他文件忽略。
+ * transcript.txt、可选的 url.txt 和 timestamps.json、vocab.json。mp4/srt/vtt 等其他文件忽略。
  */
 class FolderImporter(private val context: Context, private val repo: LessonRepository) {
 
@@ -57,7 +58,9 @@ class FolderImporter(private val context: Context, private val repo: LessonRepos
         val addedAt = mp3.lastModified().takeIf { it > 0 } ?: System.currentTimeMillis()
         val timestamps = children.firstOrNull { it.name.equals("timestamps.json", ignoreCase = true) }?.let(::readText)
             ?.takeIf { Timestamps.parse(it).isNotEmpty() }
-        return repo.insertImported(slug, url, transcript.trim(), addedAt, timestamps) {
+        val vocab = children.firstOrNull { it.name.equals("vocab.json", ignoreCase = true) }?.let(::readText)
+            ?.takeIf { VocabMarks.parse(it).isNotEmpty() }
+        return repo.insertImported(slug, url, transcript.trim(), addedAt, timestamps, vocab) {
             context.contentResolver.openInputStream(mp3.uri) ?: throw IllegalStateException("读不到音频文件")
         }
     }

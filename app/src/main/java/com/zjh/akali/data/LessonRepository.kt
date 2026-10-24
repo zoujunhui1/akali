@@ -83,7 +83,8 @@ class LessonRepository(
     suspend fun storageBytes(): Long = withContext(Dispatchers.IO) { files.totalBytes() }
 
     /**
-     * 导入已有课程。同级别同编号已存在则不重复导入；但已存在的课如果还没有时间戳而这次带了，就补上。
+     * 导入已有课程。同级别同编号已存在则不重复导入；但已存在的课如果还没有时间戳而这次带了就补上，
+     * 词表标记（[vocab]）和已存的不一样就换成新的（飞书里的词会常常增加）。
      * [audio] 只在需要新建课程时才会被读取。
      */
     suspend fun insertImported(
@@ -92,20 +93,26 @@ class LessonRepository(
         transcript: String,
         addedAt: Long,
         timestamps: String? = null,
+        vocab: String? = null,
         audio: () -> InputStream,
     ): ImportOutcome = withContext(Dispatchers.IO) {
         val existing = dao.find(slug.level, slug.number)
         if (existing != null) {
+            var changed = false
             if (timestamps != null && existing.timestamps == null) {
                 dao.setTimestamps(existing.id, timestamps)
-                return@withContext ImportOutcome.Updated
+                changed = true
             }
-            return@withContext ImportOutcome.Skipped
+            if (vocab != null && vocab != existing.vocab) {
+                dao.setVocab(existing.id, vocab)
+                changed = true
+            }
+            return@withContext if (changed) ImportOutcome.Updated else ImportOutcome.Skipped
         }
         val id = dao.insert(
             Lesson(
                 level = slug.level, number = slug.number, title = slug.title, sourceUrl = sourceUrl,
-                addedAt = addedAt, transcript = transcript, audioDownloaded = false, timestamps = timestamps,
+                addedAt = addedAt, transcript = transcript, audioDownloaded = false, timestamps = timestamps, vocab = vocab,
             ),
         )
         if (id < 0) return@withContext ImportOutcome.Skipped

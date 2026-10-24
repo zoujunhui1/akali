@@ -83,7 +83,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
 
             Section("导入已有课程") {
                 Text(
-                    "选择存放课程的文件夹（里面每课一个子文件夹，含 mp3 和 transcript.txt），已存在的课程会自动跳过。",
+                    "选择存放课程的文件夹（里面每课一个子文件夹，含 mp3 和 transcript.txt），已存在的课程不会重复导入，只会补上时间戳、更新词表。",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Spacer(Modifier.height(8.dp))
@@ -101,7 +101,7 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
                         Spacer(Modifier.height(8.dp))
                         Text(
                             "导入 ${s.result.imported} 课" +
-                                (if (s.result.updated > 0) "，补充时间戳 ${s.result.updated} 课" else "") +
+                                (if (s.result.updated > 0) "，更新时间戳或词表 ${s.result.updated} 课" else "") +
                                 "，跳过 ${s.result.skipped} 课（已存在）",
                             color = colors.secondary,
                         )
