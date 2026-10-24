@@ -45,15 +45,15 @@ import kotlinx.coroutines.launch
 /** 收藏页：所有主题里收藏的词放在一起，按主题分组；可以自测复习，也可以跳到词所在的书页看图。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VocabFavoritesScreen(vm: VocabViewModel, onShowPicture: (code: String, key: String) -> Unit, onBack: () -> Unit) {
+fun VocabFavoritesScreen(vm: VocabViewModel, onShowPicture: (code: String, key: String) -> Unit, onAi: (code: String, key: String) -> Unit, onBack: () -> Unit) {
     val lessons by vm.lessons.collectAsStateWithLifecycle()
     val marks by vm.marks.collectAsStateWithLifecycle()
     val playing by vm.playingClip.collectAsStateWithLifecycle()
     val explaining by vm.explaining.collectAsStateWithLifecycle()
     var review by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf<String?>(null) }
     var cards by remember { mutableStateOf(false) }
     val revealed = remember { mutableStateListOf<String>() }
-    var expanded by remember { mutableStateOf<String?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val colors = MaterialTheme.colorScheme
@@ -149,6 +149,7 @@ fun VocabFavoritesScreen(vm: VocabViewModel, onShowPicture: (code: String, key: 
                             onToggle = { expanded = if (expanded == id) null else id },
                             onGenerate = { force -> vm.explain(lesson.code, e.key, force) },
                             onMark = { vm.setMark(lesson.code, e.key, it) },
+                            onAi = { onAi(lesson.code, e.key) },
                             onShowPicture = { onShowPicture(lesson.code, e.key) },
                         )
                     }

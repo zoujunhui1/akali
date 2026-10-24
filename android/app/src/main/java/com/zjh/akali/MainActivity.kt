@@ -41,7 +41,7 @@ import com.zjh.akali.ui.settings.SettingsScreen
 import com.zjh.akali.ui.theme.AkaliTheme
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
-import com.zjh.akali.ui.vocab.VocabChatScreen
+import com.zjh.akali.ui.vocab.VocabWordScreen
 import com.zjh.akali.ui.vocab.VocabFavoritesScreen
 import com.zjh.akali.ui.vocab.VocabLessonScreen
 import com.zjh.akali.ui.vocab.VocabListScreen
@@ -126,6 +126,7 @@ private fun AkaliRoot(vm: MainViewModel) {
                 VocabFavoritesScreen(
                     vocabVm,
                     onShowPicture = { code, key -> nav.navigate("vocab/$code?entry=$key") },
+                    onAi = { code, key -> nav.navigate("vocab/$code/word/$key") },
                     onBack = { nav.popBackStack() },
                 )
             }
@@ -136,11 +137,16 @@ private fun AkaliRoot(vm: MainViewModel) {
                 val code = entry.arguments?.getString("code").orEmpty()
                 VocabLessonScreen(
                     vocabVm, code, focusKey = entry.arguments?.getString("entry"),
-                    onBack = { nav.popBackStack() }, onChat = { nav.navigate("vocab/$code/chat") },
+                    onBack = { nav.popBackStack() }, onAi = { key -> nav.navigate("vocab/$code/word/$key") },
                 )
             }
-            composable("vocab/{code}/chat") { entry ->
-                VocabChatScreen(vocabVm, entry.arguments?.getString("code").orEmpty(), onBack = { nav.popBackStack() })
+            composable("vocab/{code}/word/{key}") { entry ->
+                VocabWordScreen(
+                    vocabVm,
+                    entry.arguments?.getString("code").orEmpty(),
+                    entry.arguments?.getString("key").orEmpty(),
+                    onBack = { nav.popBackStack() },
+                )
             }
         }
     }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Star
@@ -217,7 +218,7 @@ private fun TopicCard(topic: VocabLesson, favorites: Int, onClick: () -> Unit) {
 /** 一个主题：每页先放页面图，下面是这一页的词条，点词播放发音。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBack: () -> Unit, onChat: () -> Unit) {
+fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBack: () -> Unit, onAi: (key: String) -> Unit) {
     val lesson by remember(code) { vm.lesson(code) }.collectAsStateWithLifecycle(initialValue = null)
     val downloading by vm.downloading.collectAsStateWithLifecycle()
     val playing by vm.playingClip.collectAsStateWithLifecycle()
@@ -226,10 +227,10 @@ fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBac
     val listState = rememberLazyListState()
     var confirmClear by remember { mutableStateOf(false) }
     var selfTest by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf<String?>(null) }
     var showImage by remember { mutableStateOf(true) }
     var zoomPage by remember { mutableStateOf<Int?>(null) }
     val revealed = remember { mutableStateListOf<String>() }
-    var expanded by remember { mutableStateOf<String?>(null) }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
     val colors = MaterialTheme.colorScheme
@@ -261,7 +262,6 @@ fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBac
                         IconButton(onClick = { showImage = !showImage }) {
                             Icon(Icons.Rounded.Image, "显示或收起图片", tint = if (showImage) colors.primary else colors.onSurfaceVariant)
                         }
-                        IconButton(onClick = onChat) { Icon(Icons.AutoMirrored.Rounded.Chat, "和 AI 聊") }
                         IconButton(onClick = { confirmClear = true }) { Icon(Icons.Rounded.DeleteSweep, "清除图片和发音") }
                     }
                 },
@@ -334,6 +334,7 @@ fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBac
                                     onToggle = { expanded = if (expanded == e.key) null else e.key },
                                     onGenerate = { force -> vm.explain(code, e.key, force) },
                                     onMark = { vm.setMark(code, e.key, it) },
+                                    onAi = { onAi(e.key) },
                                 )
                             }
                         }
@@ -453,6 +454,7 @@ internal fun EntryRow(
     onToggle: () -> Unit,
     onGenerate: (force: Boolean) -> Unit,
     onMark: (MarkState) -> Unit,
+    onAi: () -> Unit,
     onShowPicture: (() -> Unit)? = null,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -508,6 +510,7 @@ internal fun EntryRow(
                         tint = if (note != null) colors.secondary else colors.onSurfaceVariant,
                     )
                 }
+                IconButton(onClick = onAi) { Icon(Icons.Rounded.AutoAwesome, "问 AI", tint = colors.secondary) }
             }
             Icon(
                 Icons.AutoMirrored.Rounded.VolumeUp,

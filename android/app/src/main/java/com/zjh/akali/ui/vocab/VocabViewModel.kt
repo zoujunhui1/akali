@@ -49,7 +49,7 @@ class VocabViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _chats = MutableStateFlow<Map<String, List<ChatMessage>>>(emptyMap())
 
-    /** 各主题的聊天记录（只在 app 运行期间保留） */
+    /** 各个词的聊天记录（只在 app 运行期间保留） */
     val chats: StateFlow<Map<String, List<ChatMessage>>> = _chats
 
     private val _sending = MutableStateFlow(false)
@@ -118,16 +118,22 @@ class VocabViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun sendChat(code: String, text: String) {
+    /** 针对某个词继续问 AI；聊天记录按“主题/词条key”存，只在 app 运行期间保留。 */
+    fun sendChat(code: String, key: String, word: String, text: String) {
         val say = text.trim()
+        val id = "$code/$key"
         if (say.isEmpty() || _sending.value) return
-        val history = _chats.value[code].orEmpty() + ChatMessage("user", say)
-        _chats.update { it + (code to history) }
+        val history = _chats.value[id].orEmpty() + ChatMessage("user", say)
+        _chats.update { it + (id to history) }
         _sending.value = true
+        // 服务器的聊天是按主题的；每次把“在聊哪个词”写进第一句，界面上看不到这个前缀
+        val outgoing = history.mapIndexed { i, m ->
+            if (i == 0 && m.role == "user") ChatMessage("user", "[About the word \"$word\"] ${m.content}") else m
+        }
         viewModelScope.launch {
             try {
-                val reply = repo.chat(code, history)
-                _chats.update { it + (code to history + ChatMessage("assistant", reply)) }
+                val reply = repo.chat(code, outgoing)
+                _chats.update { it + (id to history + ChatMessage("assistant", reply)) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -138,7 +144,7 @@ class VocabViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun clearChat(code: String) = _chats.update { it - code }
+    fun clearChat(code: String, key: String) = _chats.update { it - "$code/$key" }
 
     /** 点词播放发音；正在听课文时先暂停课文。 */
     fun playClip(code: String, audio: String) {
