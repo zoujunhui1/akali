@@ -1,6 +1,8 @@
 """Build vocabulary lessons from the Oxford Picture Dictionary PDF.
 
   ./.venv-tts/bin/python oxford_build.py 1        build every topic of unit 1
+  ./.venv-tts/bin/python oxford_build.py 2-12     build units 2 to 12 (page ranges come from build/pages.json,
+                                                   made by oxford_pages.py)
 
 For each topic: page images (JPEG), the numbered entries read from the PDF text, and one spoken mp3 per
 entry made with Kokoro (voice af_heart). Output goes to <AKALI_OXFORD>/build/lessons/<code>/ and is
@@ -8,6 +10,7 @@ meant to stay on this Mac and the private server, never in the repo.
 
 Needs poppler (pdftoppm, pdftotext), ffmpeg, and the Kokoro model files in <AKALI_OXFORD>/build/tts-model.
 """
+import hashlib
 import json
 import os
 import re
@@ -34,7 +37,31 @@ UNITS = {
     ],
 }
 
-LABEL = re.compile(r"^([0-9]{1,2}|[A-Za-z])[.:]\s+(\S.*)$")
+PAGES_FILE = ROOT / "build" / "pages.json"
+
+
+def units():
+    """Unit -> [(title, first page, last page)]: the page table from oxford_pages.py, unit 1 as hand-checked."""
+    table = dict(UNITS)
+    if PAGES_FILE.exists():
+        for unit, items in json.loads(PAGES_FILE.read_text(encoding="utf-8"))["topics"].items():
+            table.setdefault(int(unit), [(i["title"], i["first"], i["last"]) for i in items])
+    return table
+
+
+def gaps(entries):
+    """Labels missing inside the run of numbers and letters of one lesson. A run may start above 1
+    (numbering can continue from the previous topic), so only holes between its ends count."""
+    nums = sorted(int(e["label"]) for e in entries if e["label"].isdigit())
+    letters = sorted(e["label"] for e in entries if e["label"].isalpha())
+    missing = [str(n) for n in range(nums[0], nums[-1] + 1) if n not in nums] if nums else []
+    if letters:
+        missing += [chr(c) for c in range(ord(letters[0]), ord(letters[-1]) + 1) if chr(c) not in letters]
+    return missing
+
+
+LABEL = re.compile(r"^(?:([0-9]{1,2})[.:,]|([A-Za-z])[.:])\s+(\S.*)$")
+LABEL_ONLY = re.compile(r"^([0-9]{1,2})[.,:]$")
 # Lines after which the page only has practice exercises, not vocabulary.
 STOP = re.compile(r"^(Tell your partner|Pair practice|Survey your|Use the new words|Look at pages|Take turns|"
                   r"Ways to talk|Internet Research|Report:|Think about|What do you|Role play|Write |Read the )", re.I)
@@ -83,17 +110,35 @@ def raw_entries(page):
     """(label, text) pairs from the page, without the practice exercises at the bottom."""
     rows = ocr_page(page)
     stop_y = min([y for _, y, t in rows if STOP.match(t)], default=2)
-    out, last = [], None                  # last = (x, y) of the previous entry line
-    for x, y, t in rows:
-        if y >= stop_y - 0.005:
+    rows = [r for r in rows if r[1] < stop_y - 0.005]
+    # a number the OCR read as its own line ("28." then "screen" beside it): put them back together
+    joined, used = [], set()
+    for i, (x, y, t) in enumerate(rows):
+        if i in used:
             continue
+        if LABEL_ONLY.match(t.strip()):
+            beside = [(rx - x, j) for j, (rx, ry, rt) in enumerate(rows)
+                      if j != i and j not in used and abs(ry - y) < 0.012 and 0 < rx - x < 0.1 and not LABEL.match(rt.strip())]
+            if beside:
+                j = min(beside)[1]
+                used.add(j)
+                t = t.strip() + " " + rows[j][2].strip()
+        joined.append((x, y, t))
+    out, spots = [], []                   # spots[i] = (x, y) of out[i]'s label line
+    for x, y, t in joined:
         m = LABEL.match(t.strip())
+        if m and t.strip()[len(m.group(1) or m.group(2))] == "," and not m.group(3)[0].isalpha():
+            m = None                      # "32, 40, 48" is a row of numbers, not an entry
         if m:
-            out.append([m.group(1), m.group(2)])
-            last = (x, y)
-        elif last and t[:1].islower() and 0 < y - last[1] < 0.04 and abs(x - last[0]) < 0.06:
-            out[-1][1] += " " + t.strip()  # a wrapped entry
-            last = (x, y)
+            out.append([m.group(1) or m.group(2), m.group(3)])
+            spots.append((x, y))
+        elif t[:1].islower() and out:
+            # a wrapped entry: continues the nearest label line above it in the same column
+            near = [(y - sy, i) for i, (sx, sy) in enumerate(spots) if 0 < y - sy < 0.045 and abs(x - sx) < 0.06]
+            if near:
+                i = min(near)[1]
+                out[i][1] += " " + t.strip()
+                spots[i] = (spots[i][0], y)   # a third line would continue from here
     return [(a, clean(b)) for a, b in out]
 
 
@@ -115,23 +160,44 @@ def order_key(item):
     return (1, label) if label.isalpha() else (0, int(label))
 
 
+# Characters the OCR mixes up in labels: a repeated label may really be its look-alike.
+LOOKALIKE = {"L": "I", "T": "I", "B": "8", "8": "B", "S": "5", "5": "S", "I": "1", "1": "I", "G": "6", "6": "G", "O": "0", "Z": "2", "2": "Z"}
+
+
 def lesson_entries(first, last):
-    entries, seen = [], set()
+    kept, seen, repeats = {}, set(), []
     for page in range(first, last + 1):
-        kept = []
+        kept[page] = []
         for label, text in fix_labels(raw_entries(page)):
             text = re.sub(r"\s*/$", "", text).strip()
-            if label in seen or len(text) < 2 or len(text.split()) > 9 or text.isupper():
-                continue                          # repeated labels are exercises; long or shouting text is not an entry
+            if len(text) < 2 or len(text.split()) > 9 or text.isupper():
+                continue                          # long or shouting text is not an entry
             if label.isdigit() and "?" in text:
                 continue                          # numbered questions are exercises
+            if label in seen:
+                repeats.append((page, label, text))   # an exercise number, or a label the OCR misread
+                continue
             seen.add(label)
-            kept.append((label, text))
-        kept.sort(key=order_key)
-        letters = [k[0] for k in kept if k[0].isalpha()]
-        while len(letters) > 3 and ord(letters[-1]) - ord(letters[-2]) > 3:
-            kept = [k for k in kept if k[0] != letters.pop()]   # a stray letter after the run (S after I)
-        entries += [{"label": a, "text": b, "page": page} for a, b in kept]
+            kept[page].append((label, text))
+    # a repeat becomes its look-alike when that label is missing from inside the run of numbers/letters
+    numbers = sorted(int(l) for l in seen if l.isdigit())
+    letters = sorted(l for l in seen if l.isalpha())
+    for page, label, text in repeats:
+        alt = LOOKALIKE.get(label)
+        if alt is None or alt in seen or len(text.split()) > 6:
+            continue
+        inside = (alt.isdigit() and numbers and numbers[0] < int(alt) < numbers[-1]) or \
+                 (alt.isalpha() and letters and letters[0] < alt < letters[-1])
+        if inside:
+            seen.add(alt)
+            kept[page].append((alt, text))
+    entries = []
+    for page in range(first, last + 1):
+        page_entries = sorted(kept[page], key=order_key)
+        run = [k[0] for k in page_entries if k[0].isalpha()]
+        while len(run) > 3 and ord(run[-1]) - ord(run[-2]) > 3:
+            page_entries = [k for k in page_entries if k[0] != run.pop()]   # a stray letter after the run (S after I)
+        entries += [{"label": a, "text": b, "page": page} for a, b in page_entries]
     return entries
 
 
@@ -147,19 +213,32 @@ def speak_text(text):
     return re.sub(r"\s*/\s*", ", ", text)
 
 
+def parse_units(arg):
+    """"3" -> [3]; "2-12" -> [2..12]."""
+    if "-" in arg:
+        a, b = arg.split("-")
+        return list(range(int(a), int(b) + 1))
+    return [int(arg)]
+
+
 def main():
-    unit = int(sys.argv[1])
     import soundfile as sf
     from kokoro_onnx import Kokoro
     tts = Kokoro(str(MODEL / "kokoro.onnx"), str(MODEL / "voices.bin"))
-    for index, (title, first, last) in enumerate(UNITS[unit], 1):
+    table = units()
+    for unit in parse_units(sys.argv[1]):
+        build_unit(unit, table[unit], tts, sf)
+
+
+def build_unit(unit, topics, tts, sf):
+    for index, (title, first, last) in enumerate(topics, 1):
         code = f"V{unit:02d}-{index:02d}"
         folder = OUT / code
         (folder / "audio").mkdir(parents=True, exist_ok=True)
         render_pages(first, last, folder)
         entries = lesson_entries(first, last)
         for e in entries:
-            name = f"{e['page']}-{e['label']}"
+            name = f"{e['page']}-{e['label']}-{hashlib.sha1(speak_text(e['text']).encode()).hexdigest()[:6]}"
             mp3 = folder / "audio" / f"{name}.mp3"
             if not mp3.exists():
                 samples, rate = tts.create(speak_text(e["text"]), voice=VOICE, speed=SPEED, lang="en-us")
@@ -170,7 +249,8 @@ def main():
             e["audio"] = f"audio/{name}.mp3"
         doc = {"code": code, "unit": unit, "title": title, "pages": list(range(first, last + 1)), "entries": entries}
         (folder / "lesson.json").write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
-        print(code, title, len(entries), "entries", flush=True)
+        missing = gaps(entries)
+        print(code, title, len(entries), "entries" + (f"   CHECK missing labels: {' '.join(missing)}" if missing else ""), flush=True)
 
 
 if __name__ == "__main__":
