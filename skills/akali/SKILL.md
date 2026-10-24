@@ -1,11 +1,11 @@
 ---
 name: akali
-description: akali 项目（自用 Android 英语听力 app，播放 ELLLO 课程；含 Go 后端和 Mac 工具）的业务方案、技术方案、架构方案和任务清单。在 akali 仓库里做任何事之前先读：写代码、讨论功能、建项目、加课程、后端/部署、Mac 工具、排任务时都要用。
+description: akali 项目（自用 Android 英语学习 app：听力播放 ELLLO 课程 + 图解词典词汇学习；含 Go 后端和 Mac 工具）的业务方案、技术方案、架构方案、词汇学习方案和任务清单。在 akali 仓库里做任何事之前先读：写代码、讨论功能、建项目、加课程、后端/部署、Mac 工具、排任务时都要用。
 ---
 
 # akali
 
-自己用的 Android 英语听力 app：课程数据由云上后端提供，手机同步后离线反复听，路上也能听。只有一个用户（Zhenghui），不上架，真机是一加 15T。
+自己用的 Android 英语学习 app：**听力**（ELLLO 课程）和**词汇**（图解词典，看图想词、AI 讲解），以后可能加语法。数据由云上后端提供，手机同步后离线用，路上也能听。只有一个用户（Zhenghui），不上架，真机是一加 15T。
 
 ## 仓库结构（三个部分分开放）
 
@@ -13,7 +13,7 @@ description: akali 项目（自用 Android 英语听力 app，播放 ELLLO 课�
 |---|---|
 | `android/` | 手机 app（Kotlin + Compose，整个 Android 工程在这里；构建都在这个目录里跑） |
 | `server/` | 云上后端（Go + Gin + MySQL），部署在 Google Cloud |
-| `mac/` | Mac 本机工具：akali studio 页面（抓 ELLLO、Whisper 识别、读飞书、上传后端） |
+| `mac/` | Mac 本机工具：akali studio 页面（抓 ELLLO、Whisper 识别、读飞书、上传后端）；词典构建、纠错、上传脚本（`oxford_*.py`） |
 | `skills/akali/` | 本 skill 和方案文档 |
 
 ## 按需读取
@@ -23,15 +23,17 @@ description: akali 项目（自用 Android 英语听力 app，播放 ELLLO 课�
 | 问“要做什么 / 功能范围 / 为什么这样” | `references/业务方案.md` |
 | 写代码 / 选型 / 解析 ELLLO / 播放、下载、存储设计 | `references/技术方案.md` |
 | 后端 / 数据流 / 部署 / Mac 工具 / 三个部分怎么配合 | `references/架构方案.md` |
+| 词汇学习：词典内容怎么来、构建/纠错/上传、AI 讲解、标记、收藏复习、词的 AI 页和语音输入 | `references/词汇学习方案.md` |
 | 问“下一步做什么 / 做到哪了” | `references/任务清单.md` |
 
 ## 已定的核心决定（详情见 references）
 
-- 所有课程音频**完整下载**到 app 私有目录，不做边播边缓存（路上没网也要能听）。
-- 添加课程**在 app 里粘贴链接**，app 自己解析；不用电脑脚本、不用 Syncthing、不用云服务器。
-- 文稿没有时间戳，V1 只显示整段，可隐藏/显示；逐句同步和单句循环放后续。
-- 不做生词、学习记录、账号。
-- 技术栈：Kotlin + Compose，Media3，Room，OkHttp + Jsoup，MVVM，不用 Hilt。
+- 课程音频和词汇文件包都**完整下载**到 app 私有目录，不做边播边缓存（路上没网也要能用）；点哪个下哪个，下载走后端并校验 sha256。
+- **app 里不添加课程**：新课在 Mac 的 akali studio 页面处理后上传后端，手机同步（已废弃的“贴链接/选文件夹导入”都已删除）。
+- 听力有逐句时间戳、单句循环、飞书词表标记；词汇有按词的 AI 讲解（用户手动点才生成，存服务器）、标记（普通/已收藏/已会）同步、收藏卡片复习。
+- 导航是底部三个页签：听力、词汇、我的；以后加语法就多一个页签。
+- 不做账号、学习统计看板（看板属于将来要先讨论的新功能）。
+- 技术栈：Kotlin + Compose，Media3，Room，OkHttp，MVVM，不用 Hilt；后端 Go + Gin + MySQL；Mac 工具 Python。
 
 ## 工作约定
 
@@ -40,5 +42,7 @@ description: akali 项目（自用 Android 英语听力 app，播放 ELLLO 课�
 - 这个项目不需要教学式讲解；汇报用大白话，说清做了什么、怎么验证、有什么要用户确认。
 - 用户在意 token，写完文件后一两句话说清是什么、在哪，不要把内容再念一遍。
 - 方案有变动时，同步更新 `references/` 里对应文件，保持这里是唯一的事实来源。
-- 仓库只放代码和文档；课程内容（mp3、transcript）、口令（`mac/.env`、`server/.env`、`android/local.properties`）、官方美术图都不进 git。
+- 仓库是**公开**的，只放代码和文档；课程和词典内容（mp3、文稿、词典页面图、词条原文、页码表）、服务器地址/域名/SSH 用户、口令和 AI 密钥（`mac/.env`、`server/.env`、`server/deploy.env`、`android/local.properties`）、官方美术图都不进 git。提交前扫一遍。
+- 提交和推送都等用户明确说了才做，提交信息不带 AI 署名；重任务（OCR、语音合成、模拟器）一次一个、用完关掉，别把用户的 Mac 内存吃光。
+- 设备自动测试（`connectedDebugAndroidTest`）会清数据，只能在模拟器上跑：`ANDROID_SERIAL=emulator-5554 ./gradlew connectedDebugAndroidTest`。
 - 动 Google Cloud 控制台的安全类设置（SSH 密钥、防火墙）会被系统拦截，给用户步骤让他自己点。
