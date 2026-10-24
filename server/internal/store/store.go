@@ -56,6 +56,7 @@ type Lesson struct {
 	Vocab      json.RawMessage // nil when absent
 	Rev        int64
 	Deleted    bool
+	CreatedAt  time.Time
 	UpdatedAt  time.Time
 }
 
@@ -192,14 +193,14 @@ func (s *Store) Delete(ctx context.Context, level string, number int) error {
 }
 
 const lessonColumns = `level, number, title, source_url, transcript, audio_size, audio_sha256,
-	timestamps, vocab, rev, deleted, updated_at`
+	timestamps, vocab, rev, deleted, created_at, updated_at`
 
 func scan(row interface{ Scan(...any) error }) (Lesson, error) {
 	var l Lesson
 	var src sql.NullString
 	var ts, vocab []byte
 	if err := row.Scan(&l.Level, &l.Number, &l.Title, &src, &l.Transcript, &l.AudioSize, &l.AudioSHA,
-		&ts, &vocab, &l.Rev, &l.Deleted, &l.UpdatedAt); err != nil {
+		&ts, &vocab, &l.Rev, &l.Deleted, &l.CreatedAt, &l.UpdatedAt); err != nil {
 		return Lesson{}, err
 	}
 	if src.Valid {

@@ -114,6 +114,7 @@ type lessonJSON struct {
 	Audio      *audioInfo      `json:"audio"`
 	Rev        int64           `json:"rev"`
 	Deleted    bool            `json:"deleted"`
+	CreatedAt  int64           `json:"created_at"` // unix milliseconds
 	Transcript *string         `json:"transcript,omitempty"`
 	Timestamps json.RawMessage `json:"timestamps,omitempty"`
 	Vocab      json.RawMessage `json:"vocab,omitempty"`
@@ -122,7 +123,7 @@ type lessonJSON struct {
 func toJSON(l store.Lesson, content bool) lessonJSON {
 	out := lessonJSON{
 		Code: l.Code(), Level: l.Level, Number: l.Number, Title: l.Title,
-		SourceURL: l.SourceURL, Rev: l.Rev, Deleted: l.Deleted,
+		SourceURL: l.SourceURL, Rev: l.Rev, Deleted: l.Deleted, CreatedAt: l.CreatedAt.UnixMilli(),
 	}
 	if l.AudioSize > 0 {
 		out.Audio = &audioInfo{Size: l.AudioSize, SHA256: l.AudioSHA}

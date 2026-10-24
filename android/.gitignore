@@ -1,0 +1,12 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+*.apk
+*.aab
+
+# 官方美术头像（版权在拳头游戏，仅本机自用，不进公开仓库）
+app/src/personal/

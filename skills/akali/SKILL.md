@@ -1,11 +1,20 @@
 ---
 name: akali
-description: akali 项目（自用 Android 英语听力 app，播放 ELLLO 课程）的业务方案、技术方案和任务清单。在 akali 仓库里做任何事之前先读：写代码、讨论功能、建项目、解析 ELLLO、加课程、排任务时都要用。
+description: akali 项目（自用 Android 英语听力 app，播放 ELLLO 课程；含 Go 后端和 Mac 工具）的业务方案、技术方案、架构方案和任务清单。在 akali 仓库里做任何事之前先读：写代码、讨论功能、建项目、加课程、后端/部署、Mac 工具、排任务时都要用。
 ---
 
 # akali
 
-自己用的 Android app：粘贴 ELLLO 课程链接，下载音频和文稿到手机，离线反复听，路上也能听。只有一个用户（Zhenghui），不上架，真机是一加 15T。
+自己用的 Android 英语听力 app：课程数据由云上后端提供，手机同步后离线反复听，路上也能听。只有一个用户（Zhenghui），不上架，真机是一加 15T。
+
+## 仓库结构（三个部分分开放）
+
+| 目录 | 是什么 |
+|---|---|
+| `android/` | 手机 app（Kotlin + Compose，整个 Android 工程在这里；构建都在这个目录里跑） |
+| `server/` | 云上后端（Go + Gin + MySQL），部署在 Google Cloud |
+| `mac/` | Mac 本机工具：akali studio 页面（抓 ELLLO、Whisper 识别、读飞书、上传后端） |
+| `skills/akali/` | 本 skill 和方案文档 |
 
 ## 按需读取
 
@@ -13,6 +22,7 @@ description: akali 项目（自用 Android 英语听力 app，播放 ELLLO 课�
 |---|---|
 | 问“要做什么 / 功能范围 / 为什么这样” | `references/业务方案.md` |
 | 写代码 / 选型 / 解析 ELLLO / 播放、下载、存储设计 | `references/技术方案.md` |
+| 后端 / 数据流 / 部署 / Mac 工具 / 三个部分怎么配合 | `references/架构方案.md` |
 | 问“下一步做什么 / 做到哪了” | `references/任务清单.md` |
 
 ## 已定的核心决定（详情见 references）
@@ -30,4 +40,5 @@ description: akali 项目（自用 Android 英语听力 app，播放 ELLLO 课�
 - 这个项目不需要教学式讲解；汇报用大白话，说清做了什么、怎么验证、有什么要用户确认。
 - 用户在意 token，写完文件后一两句话说清是什么、在哪，不要把内容再念一遍。
 - 方案有变动时，同步更新 `references/` 里对应文件，保持这里是唯一的事实来源。
-- 仓库只放 app 代码和文档；课程内容（mp3、transcript）不进 git。
+- 仓库只放代码和文档；课程内容（mp3、transcript）、口令（`mac/.env`、`server/.env`、`android/local.properties`）、官方美术图都不进 git。
+- 动 Google Cloud 控制台的安全类设置（SSH 密钥、防火墙）会被系统拦截，给用户步骤让他自己点。

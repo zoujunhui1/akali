@@ -71,6 +71,7 @@ type listResp struct {
 		Code       string          `json:"code"`
 		Title      string          `json:"title"`
 		Deleted    bool            `json:"deleted"`
+		CreatedAt  int64           `json:"created_at"`
 		Rev        int64           `json:"rev"`
 		Transcript *string         `json:"transcript"`
 		Timestamps json.RawMessage `json:"timestamps"`
@@ -110,6 +111,9 @@ func TestLessonLifecycle(t *testing.T) {
 	l := list(t, r, "")
 	if len(l.Lessons) != 1 || l.Lessons[0].Code != "B2-036" || l.Lessons[0].Audio != nil || l.Lessons[0].Transcript != nil {
 		t.Fatalf("unexpected list: %+v", l)
+	}
+	if l.Lessons[0].CreatedAt < 1_700_000_000_000 { // a real time in milliseconds, not zero or seconds
+		t.Fatalf("created_at looks wrong: %d", l.Lessons[0].CreatedAt)
 	}
 	synced := l.Rev
 

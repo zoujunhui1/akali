@@ -11,6 +11,7 @@ AKALI_LIBRARY (default ~/Documents/english study/elllo).
 import json
 import os
 import queue
+import re
 import threading
 import time
 import traceback
@@ -235,6 +236,14 @@ def task_redo(code):
     return run
 
 
+def task_delete(code):
+    """Remove the lesson from the server only; the local folder stays (phones drop it on their next sync)."""
+    def run(job):
+        Client().delete(code)
+        job.say(f"{code} 已从服务器删除（本地文件夹还在，手机同步后会移除这一课）")
+    return run
+
+
 def task_upload(code):
     def run(job):
         folder = folders().get(code)
@@ -303,6 +312,8 @@ class Handler(BaseHTTPRequestHandler):
             job = submit(f"更新词表 {code}" if code else "更新全部词表", task_vocab([code] if code else []))
         elif self.path == "/api/redo" and code in folders():
             job = submit(f"重新识别 {code}", task_redo(code))
+        elif self.path == "/api/delete" and re.fullmatch(r"[BC]\d-\d{3}", code):
+            job = submit(f"从服务器删除 {code}", task_delete(code))
         elif self.path == "/api/upload" and code in folders():
             job = submit(f"重新上传 {code}", task_upload(code))
         else:

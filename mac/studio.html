@@ -28,6 +28,7 @@
            background: var(--crimson); color: #fff; font-weight: 600; }
   button.ghost { background: transparent; color: var(--violet); border: 1px solid var(--line); font-weight: 500; }
   button.small { padding: 5px 10px; font-size: 13px; }
+  button.danger { color: var(--crimson); }
   button:disabled { opacity: .5; cursor: default; }
   .err { color: var(--crimson); margin-top: 8px; }
   .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
@@ -123,6 +124,14 @@ function renderRows() {
       const b = document.createElement("button"); b.className = "ghost small"; b.textContent = label;
       b.onclick = () => run(path, { code: l.code }, label + " " + l.code);
       acts.append(b);
+    }
+    if (l.server && l.server.present) {
+      const d = document.createElement("button"); d.className = "ghost small danger"; d.textContent = "从服务器删除";
+      d.onclick = () => {
+        if (confirm("从服务器删除 " + l.code + " " + l.title + "？\n本地文件夹不会删，手机下次同步后会移除这一课。之后可以点“重新上传”恢复。"))
+          run("/api/delete", { code: l.code }, "删除 " + l.code);
+      };
+      acts.append(d);
     }
     tr.append(acts); body.append(tr);
   }
