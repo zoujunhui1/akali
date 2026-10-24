@@ -70,6 +70,20 @@ class Client:
         out = json.loads(self._call("GET", "/api/v1/vocab", self.app))
         return {l["code"]: l for l in out["lessons"]}
 
+    def server_articles(self):
+        """code -> {'title', 'word_count', 'source'} of the articles the server has."""
+        out = json.loads(self._call("GET", "/api/v1/articles?since=0", self.app))
+        return {a["code"]: {"title": a["title"], "word_count": a["word_count"], "source": a["source"]} for a in out["articles"]}
+
+    def server_dict(self):
+        """{'size', 'sha256'} of the dictionary file on the server, or None when there is none yet."""
+        try:
+            return json.loads(self._call("GET", "/api/v1/dict", self.app))
+        except ApiError as e:
+            if " 404:" in str(e):
+                return None
+            raise
+
     # ---- write (admin token) ----
     def put_lesson(self, code, title, source_url, transcript):
         self._put_json(f"/admin/lessons/{code}", {"title": title, "source_url": source_url, "transcript": transcript})
@@ -94,6 +108,15 @@ class Client:
 
     def delete(self, code):
         self._call("DELETE", f"/admin/lessons/{code}", self.admin)
+
+    def put_article(self, code, title, source, body):
+        self._put_json(f"/admin/articles/{code}", {"title": title, "source": source, "body": body})
+
+    def delete_article(self, code):
+        self._call("DELETE", f"/admin/articles/{code}", self.admin)
+
+    def put_dict(self, data):
+        self._call("PUT", "/admin/dict", self.admin, data, "application/octet-stream")
 
 
 def sha256(data):

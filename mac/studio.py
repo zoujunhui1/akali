@@ -8,8 +8,11 @@ uploaded to the backend, and the phone only syncs from there. Listens on this Ma
 Settings: mac/.env (AKALI_SERVER, AKALI_ADMIN_TOKEN, AKALI_APP_TOKEN); the lesson folders live in
 AKALI_LIBRARY (default ~/Documents/english study/elllo).
 """
+import base64
 import json
 import os
+import secrets
+import tempfile
 import queue
 import re
 import threading
@@ -21,6 +24,7 @@ from pathlib import Path
 import elllo_fetch
 import export_vocab
 import gen_timestamps
+import reading_import
 from akali_client import ApiError, Client, parse_folder, strip_header
 
 PORT = int(os.environ.get("AKALI_STUDIO_PORT", "18765"))
@@ -253,6 +257,63 @@ def task_upload(code):
     return run
 
 
+# ---------------------------------------------------------------- reading
+
+drafts = {}  # token -> (articles, source), kept in memory between "preview" and "upload"
+
+
+def read_preview(body):
+    kind = str(body.get("kind", ""))
+    title = str(body.get("title", "")).strip() or None
+    try:
+        if kind == "file":
+            name = Path(str(body.get("filename", "article"))).name
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / name
+                path.write_bytes(base64.b64decode(body.get("data", "")))
+                articles, source = reading_import.build_articles("file", str(path), title)
+        elif kind in ("url", "text"):
+            target = str(body.get("target", "")).strip()
+            if not target:
+                raise ValueError("还没有填内容")
+            articles, source = reading_import.build_articles(kind, target, title)
+        else:
+            raise ValueError("不认识的类型")
+    except SystemExit as e:  # the import code reports problems this way
+        raise ValueError(str(e))
+    token = secrets.token_hex(8)
+    drafts[token] = (articles, source)
+    while len(drafts) > 8:
+        drafts.pop(next(iter(drafts)))
+    return {"token": token, "source": source, "articles": [
+        {"title": t, "paragraphs": len(b), "sentences": sum(len(x) for x in b),
+         "words": sum(len(x.split()) for p in b for x in p), "first": b[0][0][:120]} for t, b in articles]}
+
+
+def task_read_upload(token, titles):
+    def run(job):
+        articles, source = drafts[token]
+        client = Client()
+        existing = set(client.server_articles())
+        for i, (title, body) in enumerate(articles):
+            if i < len(titles) and titles[i].strip():
+                title = titles[i].strip()
+            code = reading_import.next_code(existing)
+            client.put_article(code, title, source, body)
+            existing.add(code)
+            job.say(f"已上传 {code} {title}")
+        drafts.pop(token, None)
+        job.say("完成。手机“阅读”页下拉或点“立即同步”就能看到。")
+    return run
+
+
+def task_read_delete(code):
+    def run(job):
+        Client().delete_article(code)
+        job.say(f"{code} 已从服务器删除（手机同步后会移除）")
+    return run
+
+
 # ---------------------------------------------------------------- http
 
 class Handler(BaseHTTPRequestHandler):
@@ -286,6 +347,12 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/lessons":
             remote_lessons(force=True)
             self._send(200, lesson_list())
+        elif self.path == "/api/articles":
+            try:
+                found = Client().server_articles()
+                self._send(200, {"articles": [{"code": c, **v} for c, v in sorted(found.items())]})
+            except (ApiError, OSError, ValueError) as e:
+                self._send(200, {"articles": [], "server_error": str(e)})
         elif self.path == "/api/jobs":
             self._send(200, {"jobs": [j.to_json() for j in reversed(jobs[-12:])]})
         else:
@@ -301,7 +368,19 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             return self._send(400, {"error": "bad json"})
         code = str(body.get("code", ""))
-        if self.path == "/api/process":
+        if self.path == "/api/read/preview":
+            try:
+                return self._send(200, read_preview(body))
+            except ValueError as e:
+                return self._send(400, {"error": str(e)})
+            except Exception as e:  # a failed download or a broken file should show as a message, not a dead page
+                return self._send(400, {"error": f"{type(e).__name__}: {e}"})
+        if self.path == "/api/read/upload" and str(body.get("token", "")) in drafts:
+            titles = [str(t) for t in body.get("titles", [])]
+            job = submit("上传文章", task_read_upload(str(body["token"]), titles))
+        elif self.path == "/api/read/delete" and re.fullmatch(r"R\d{4,6}", code):
+            job = submit(f"从服务器删除文章 {code}", task_read_delete(code))
+        elif self.path == "/api/process":
             try:
                 page = elllo_fetch.normalize_url(str(body.get("url", "")))
             except elllo_fetch.ElloError as e:
