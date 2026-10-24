@@ -86,6 +86,25 @@ class VocabViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** 字典（和阅读共用同一个文件）；下载好之前 lookup 返回 null。 */
+    val dictState = container.dictRepository.state
+
+    fun lookup(text: String) = container.dictRepository.lookup(text)
+
+    fun downloadDict() {
+        if (dictState.value.downloading) return
+        viewModelScope.launch {
+            try {
+                container.dictRepository.download()
+                messageChannel.trySend("字典下载好了")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                messageChannel.trySend(friendly(e))
+            }
+        }
+    }
+
     fun explain(code: String, key: String, force: Boolean = false) {
         val id = "$code/$key"
         if (id in _explaining.value) return

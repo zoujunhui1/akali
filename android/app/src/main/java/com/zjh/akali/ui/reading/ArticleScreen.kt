@@ -466,7 +466,7 @@ private fun WordCard(
 
 /** 一个圆角小块（音标、考试标签）。 */
 @Composable
-private fun Pill(text: String, container: Color, content: Color) {
+internal fun Pill(text: String, container: Color, content: Color) {
     Surface(shape = RoundedCornerShape(8.dp), color = container) {
         Text(text, Modifier.padding(horizontal = 10.dp, vertical = 3.dp), style = MaterialTheme.typography.labelLarge, color = content)
     }
@@ -476,7 +476,7 @@ private val POS_PATTERN = Regex("^([a-zA-Z]{1,8}\\.)\\s*(.*)$")
 
 /** 字典里的一行“n. 边缘, 端”：词性放成左边的彩色小块，意思放右边。没有词性的行只显示意思。 */
 @Composable
-private fun MeaningRow(line: String) {
+internal fun MeaningRow(line: String) {
     val colors = MaterialTheme.colorScheme
     val m = POS_PATTERN.find(line.trim())
     Row(verticalAlignment = Alignment.Top) {

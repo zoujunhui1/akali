@@ -33,6 +33,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +51,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.zjh.akali.data.DictResult
+import com.zjh.akali.data.DictState
 import com.zjh.akali.data.EntryNote
 import com.zjh.akali.data.MarkState
 import com.zjh.akali.data.VocabEntry
@@ -63,7 +67,7 @@ internal object MarkColors {
 }
 
 /**
- * 一个词条：点一下播放发音，长按选标记（普通 / 已收藏 / 已会），小箭头展开释义和例句。
+ * 一个词条：点一下播放发音，长按选标记（普通 / 已收藏 / 已会），小箭头展开字典（音标、中文意思、英文释义），下面可以让 AI 讲。
  * [onShowPicture] 不为空时多一个“看图”按钮（收藏页用它跳到这个词所在的书页）。
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -82,6 +86,9 @@ internal fun EntryRow(
     onGenerate: (force: Boolean) -> Unit,
     onMark: (MarkState) -> Unit,
     onAi: () -> Unit,
+    dictState: DictState,
+    lookup: (String) -> DictResult?,
+    onDownloadDict: () -> Unit,
     onShowPicture: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -141,8 +148,8 @@ internal fun EntryRow(
                 IconButton(onClick = onToggle) {
                     Icon(
                         if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                        "释义和例句",
-                        tint = if (note != null) colors.secondary else colors.onSurfaceVariant,
+                        "查字典",
+                        tint = colors.onSurfaceVariant,
                     )
                 }
                 IconButton(onClick = onAi) { Icon(Icons.Rounded.AutoAwesome, "问 AI", tint = colors.secondary) }
@@ -156,8 +163,13 @@ internal fun EntryRow(
         }
         AnimatedVisibility(expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Column(Modifier.fillMaxWidth().padding(start = 44.dp, end = 14.dp, bottom = 12.dp)) {
+                EntryDictionary(entry.text, dictState, lookup, onDownloadDict)
+                Spacer(Modifier.height(10.dp))
+                // AI 讲解：点了才生成（保存在服务器），字典里没有的短语也靠它
                 when {
                     note != null -> {
+                        HorizontalDivider(color = colors.outlineVariant)
+                        Spacer(Modifier.height(8.dp))
                         Text(note.zh, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = colors.secondary)
                         Spacer(Modifier.height(4.dp))
                         Text(note.definition, style = MaterialTheme.typography.bodyMedium)
@@ -167,11 +179,11 @@ internal fun EntryRow(
                         if (generating) {
                             CircularProgressIndicator(Modifier.padding(top = 6.dp).size(18.dp), strokeWidth = 2.dp)
                         } else {
-                            TextButton(onClick = { onGenerate(true) }) { Text("重新生成") }
+                            TextButton(onClick = { onGenerate(true) }) { Text("重新让 AI 讲") }
                         }
                     }
                     generating -> CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp)
-                    else -> Button(onClick = { onGenerate(false) }) { Text("生成释义和例句") }
+                    else -> OutlinedButton(onClick = { onGenerate(false) }) { Text("让 AI 讲") }
                 }
             }
         }

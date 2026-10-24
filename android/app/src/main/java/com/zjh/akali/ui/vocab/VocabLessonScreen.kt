@@ -69,6 +69,7 @@ fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBac
     val downloading by vm.downloading.collectAsStateWithLifecycle()
     val playing by vm.playingClip.collectAsStateWithLifecycle()
     val explaining by vm.explaining.collectAsStateWithLifecycle()
+    val dictState by vm.dictState.collectAsStateWithLifecycle()
     val marks by vm.marks.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     var confirmClear by remember { mutableStateOf(false) }
@@ -201,6 +202,9 @@ fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBac
                                     onGenerate = { force -> vm.explain(code, e.key, force) },
                                     onMark = { vm.setMark(code, e.key, it) },
                                     onAi = { onAi(e.key) },
+                                    dictState = dictState,
+                                    lookup = vm::lookup,
+                                    onDownloadDict = vm::downloadDict,
                                 )
                             }
                         }

@@ -50,6 +50,7 @@ fun VocabFavoritesScreen(vm: VocabViewModel, onShowPicture: (code: String, key: 
     val marks by vm.marks.collectAsStateWithLifecycle()
     val playing by vm.playingClip.collectAsStateWithLifecycle()
     val explaining by vm.explaining.collectAsStateWithLifecycle()
+    val dictState by vm.dictState.collectAsStateWithLifecycle()
     var review by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf<String?>(null) }
     var cards by remember { mutableStateOf(false) }
@@ -151,6 +152,9 @@ fun VocabFavoritesScreen(vm: VocabViewModel, onShowPicture: (code: String, key: 
                             onGenerate = { force -> vm.explain(lesson.code, e.key, force) },
                             onMark = { vm.setMark(lesson.code, e.key, it) },
                             onAi = { onAi(lesson.code, e.key) },
+                            dictState = dictState,
+                            lookup = vm::lookup,
+                            onDownloadDict = vm::downloadDict,
                             onShowPicture = { onShowPicture(lesson.code, e.key) },
                         )
                     }
