@@ -386,18 +386,26 @@ internal fun rememberPageBitmap(file: File): ImageBitmap? {
     return bitmap
 }
 
-/** 固定在列表上方的页面图；多页的主题可以左右滑动换页，点一下全屏放大。 */
+/** 固定在列表上方的页面图；多页的主题可以左右滑动换页，双指原地放大，点一下全屏。 */
 @Composable
 private fun PageHeader(state: PagerState, pages: List<Int>, dir: File, modifier: Modifier, onZoom: (Int) -> Unit) {
+    // 当前这页放大了就不让翻页，免得拖图片时误翻
+    var zoomed by remember { mutableStateOf(false) }
+    LaunchedEffect(state.currentPage) { zoomed = false }
     Box(modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-        HorizontalPager(state, Modifier.fillMaxSize(), key = { pages[it] }) { i ->
+        HorizontalPager(state, Modifier.fillMaxSize(), userScrollEnabled = !zoomed, key = { pages[it] }) { i ->
             val bmp = rememberPageBitmap(File(dir, "page-${pages[i]}.jpg"))
             Box(
-                Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surface).clickable { onZoom(pages[i]) },
+                Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surface),
                 contentAlignment = Alignment.Center,
             ) {
                 if (bmp != null) {
-                    Image(bmp, "点击放大", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                    ZoomableImage(
+                        bmp,
+                        onTap = { onZoom(pages[i]) },
+                        onZoomedChange = { if (i == state.currentPage) zoomed = it },
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 } else {
                     CircularProgressIndicator(Modifier.size(24.dp))
                 }
