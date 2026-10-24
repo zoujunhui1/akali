@@ -24,6 +24,7 @@ description: akali 项目（自用 Android 英语学习 app：听力播放 ELLLO
 | 写代码 / 选型 / 解析 ELLLO / 播放、下载、存储设计 | `references/技术方案.md` |
 | 后端 / 数据流 / 部署 / Mac 工具 / 三个部分怎么配合 | `references/架构方案.md` |
 | 词汇学习：词典内容怎么来、构建/纠错/上传、AI 讲解、标记、收藏复习、词的 AI 页和语音输入 | `references/词汇学习方案.md` |
+| 阅读功能（导入文章、点词点句、字典、生词本）——已定方案，还没开始做 | `references/阅读功能方案.md` |
 | 问“下一步做什么 / 做到哪了” | `references/任务清单.md` |
 
 ## 已定的核心决定（详情见 references）
