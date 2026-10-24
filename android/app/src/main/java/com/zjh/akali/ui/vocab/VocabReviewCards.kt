@@ -49,6 +49,16 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import java.io.File
 
+/** 复习用的牌：收藏的词里主题已经下载的（没下载就没有图，复习不了），内容是“主题/词条key”，按书里的顺序。 */
+internal fun reviewDeck(lessons: List<VocabLesson>, marks: Map<String, MarkState>): List<String> =
+    lessons.filter { it.downloaded }.flatMap { l ->
+        l.entryList.filter { marks["${l.code}/${it.key}"] == MarkState.FAVORITE }.map { "${l.code}/${it.key}" }
+    }
+
+/** 收藏了但所在主题没下载、这次复习会被跳过的词数。 */
+internal fun skippedFavorites(lessons: List<VocabLesson>, marks: Map<String, MarkState>): Int =
+    lessons.filter { !it.downloaded }.sumOf { l -> l.entryList.count { marks["${l.code}/${it.key}"] == MarkState.FAVORITE } }
+
 /**
  * 收藏词的卡片复习：先给图和图上的编号，自己想出单词，再点“显示答案”听发音。
  * “认识了”会把这个词标成已会，“还不会”留在收藏里下次再来。
@@ -56,10 +66,9 @@ import java.io.File
 @Composable
 internal fun FavoriteCards(vm: VocabViewModel, lessons: List<VocabLesson>, marks: Map<String, MarkState>, modifier: Modifier, onExit: () -> Unit) {
     var round by remember { mutableStateOf(0) }
-    val favorites = lessons.flatMap { l -> l.entryList.filter { marks["${l.code}/${it.key}"] == MarkState.FAVORITE }.map { l to it } }
-    val skipped = favorites.count { !it.first.downloaded }
+    val skipped = skippedFavorites(lessons, marks)
     // 每一轮开始时洗一次牌；中途标成已会的词不会让牌堆变化
-    val deck = remember(round) { favorites.filter { it.first.downloaded }.map { "${it.first.code}/${it.second.key}" }.shuffled() }
+    val deck = remember(round) { reviewDeck(lessons, marks).shuffled() }
     var index by remember(round) { mutableStateOf(0) }
     var known by remember(round) { mutableStateOf(0) }
     var zoomPage by remember { mutableStateOf<Int?>(null) }
@@ -93,7 +102,7 @@ internal fun FavoriteCards(vm: VocabViewModel, lessons: List<VocabLesson>, marks
                 Text("另有 $skipped 个词的主题没下载，已跳过。", Modifier.padding(top = 8.dp), color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
             }
             Spacer(Modifier.height(20.dp))
-            if (deck.isNotEmpty() && favorites.any { it.first.downloaded }) {
+            if (deck.isNotEmpty() && reviewDeck(lessons, marks).isNotEmpty()) {
                 Button(onClick = { round++ }) { Text("再来一轮") }
                 Spacer(Modifier.height(8.dp))
             }

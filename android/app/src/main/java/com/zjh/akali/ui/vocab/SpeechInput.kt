@@ -24,6 +24,10 @@ import androidx.core.content.ContextCompat
 private const val ATTEMPTS = 4
 private const val MIN_HOLD_MS = 500L
 
+/** 语音服务报“不支持这种语言(12)”或“语言包不可用(13)”时，换下一种语言设置再试；用户已取消或试完了就不再试。 */
+internal fun shouldTryNextLanguage(error: Int, attempt: Int, discarded: Boolean): Boolean =
+    !discarded && (error == 12 || error == 13) && attempt + 1 < ATTEMPTS
+
 /**
  * 按住说话：按下开始听，松开后把识别出的文字交给 [onText]（调用方直接发送）；
  * 手指滑出按钮上方松开则取消。中文和英文都能识别。
@@ -96,8 +100,7 @@ class SpeechInput internal constructor(private val context: Context) {
             }
 
             override fun onError(error: Int) {
-                // 12 = 不支持这种语言，13 = 语言包不可用
-                if ((error == 12 || error == 13) && attempt + 1 < ATTEMPTS && !discard) {
+                if (shouldTryNextLanguage(error, attempt, discard)) {
                     firstAttempt = attempt + 1
                     begin(attempt + 1)
                     return
