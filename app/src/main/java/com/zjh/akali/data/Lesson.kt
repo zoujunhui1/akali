@@ -19,6 +19,9 @@ data class Lesson(
     val timestamps: String? = null,
     /** 飞书词表导出的标记（vocab.json 原文），没有则为空 */
     val vocab: String? = null,
+    /** 服务器上这课音频的校验值和大小（0 = 服务器上还没有音频） */
+    val remoteAudioSha: String? = null,
+    val remoteAudioSize: Long = 0,
 ) {
     val code: String get() = "%s-%03d".format(level, number)
 }

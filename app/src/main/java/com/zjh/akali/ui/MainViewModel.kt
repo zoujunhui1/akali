@@ -34,6 +34,13 @@ sealed interface AddUiState {
     data class Error(val message: String) : AddUiState
 }
 
+sealed interface SyncUiState {
+    data object Idle : SyncUiState
+    data object Running : SyncUiState
+    data class Done(val message: String) : SyncUiState
+    data class Error(val message: String) : SyncUiState
+}
+
 sealed interface ImportUiState {
     data class Running(val done: Int, val total: Int) : ImportUiState
     data class Finished(val result: ImportResult) : ImportUiState
@@ -71,8 +78,48 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _showTranscript = MutableStateFlow(prefs.showTranscript)
     val showTranscript: StateFlow<Boolean> = _showTranscript
 
+    val serverConfigured: Boolean = container.serverApi != null
+
+    private val _sync = MutableStateFlow<SyncUiState>(SyncUiState.Idle)
+    val syncState: StateFlow<SyncUiState> = _sync
+
+    private val _lastSyncAt = MutableStateFlow(prefs.lastSyncAt)
+    val lastSyncAt: StateFlow<Long> = _lastSyncAt
+
     private val messageChannel = Channel<String>(Channel.BUFFERED)
     val messages = messageChannel.receiveAsFlow()
+
+    init {
+        if (serverConfigured) sync(auto = true)
+    }
+
+    // ---- 同步 ----
+
+    /** 从服务器同步课程文字、时间戳、词表。自动同步（打开 app 时）失败不打扰用户，手动同步会提示原因。 */
+    fun sync(auto: Boolean = false) {
+        if (!serverConfigured || _sync.value is SyncUiState.Running) return
+        _sync.value = SyncUiState.Running
+        viewModelScope.launch {
+            try {
+                val r = repo.sync(prefs.syncRev) { ids -> player.release(ids.toSet()) }
+                prefs.syncRev = r.rev
+                prefs.lastSyncAt = System.currentTimeMillis()
+                _lastSyncAt.value = prefs.lastSyncAt
+                refreshStorage()
+                val changed = r.added + r.updated + r.removed
+                val text = if (changed == 0) "已是最新" else "已同步：新增 ${r.added} 课，更新 ${r.updated} 课" +
+                    (if (r.removed > 0) "，移除 ${r.removed} 课" else "")
+                _sync.value = SyncUiState.Done(text)
+                if (!auto || changed > 0) say(text)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val text = friendly(e)
+                _sync.value = SyncUiState.Error(text)
+                if (!auto) say(text)
+            }
+        }
+    }
 
     // ---- 排序 / 选择 ----
 
@@ -98,7 +145,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** 返回 true 表示已经开始播放，界面可以进入播放页。 */
     fun play(lesson: Lesson): Boolean {
         if (!lesson.audioDownloaded) {
-            if (lesson.sourceUrl != null) redownload(lesson.id) else say("这一课没有来源链接，无法重新下载")
+            if (lesson.remoteAudioSize > 0 || lesson.sourceUrl != null) redownload(lesson.id) else say("这一课还没有音频")
             return false
         }
         if (player.state.value.currentLessonId == lesson.id) return true

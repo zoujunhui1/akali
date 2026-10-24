@@ -44,6 +44,15 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("showTranscript", true)
         set(v) = sp.edit().putBoolean("showTranscript", v).apply()
 
+    /** 已同步到的服务器版本号 */
+    var syncRev: Long
+        get() = sp.getLong("syncRev", 0L)
+        set(v) = sp.edit().putLong("syncRev", v).apply()
+
+    var lastSyncAt: Long
+        get() = sp.getLong("lastSyncAt", 0L)
+        set(v) = sp.edit().putLong("lastSyncAt", v).apply()
+
     private inline fun <reified T : Enum<T>> enumOr(default: T, name: String?): T =
         enumValues<T>().firstOrNull { it.name == name } ?: default
 }

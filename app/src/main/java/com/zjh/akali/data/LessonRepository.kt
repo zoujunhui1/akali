@@ -18,10 +18,14 @@ sealed interface AddResult {
 
 enum class ImportOutcome { Imported, Updated, Skipped }
 
+/** 一次同步的结果：新增、更新、移除（服务器上已删除或音频被换掉）的课数，以及同步到的版本号。 */
+data class SyncResult(val added: Int, val updated: Int, val removed: Int, val rev: Long)
+
 class LessonRepository(
     private val dao: LessonDao,
     private val files: LessonFiles,
     private val client: ElloClient,
+    private val server: ServerApi? = null,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     val lessons: Flow<List<Lesson>> = dao.observeAll()
@@ -61,9 +65,64 @@ class LessonRepository(
         return if (existing == null) AddResult.Added(saved) else AddResult.Redownloaded(saved)
     }
 
-    /** 清除过音频的课程重新下载；没有来源链接的无法下载。 */
+    /**
+     * 从服务器同步：取 [since] 之后有变化的课。服务器上删掉的课在本地也删掉；音频被换过的课，
+     * 本地旧音频清掉（需要时再点开下载）。[beforeRemove] 在真正删除前调用，用来让播放器放开这些课的文件。
+     * 本地一课都没有时无论 [since] 是多少都从头同步。
+     */
+    suspend fun sync(since: Long, beforeRemove: suspend (List<Long>) -> Unit = {}): SyncResult = withContext(Dispatchers.IO) {
+        val api = server ?: throw IOException("没有配置服务器")
+        val payload = api.changes(if (dao.count() == 0) 0 else since)
+
+        val gone = mutableListOf<Long>()
+        val stale = mutableListOf<Long>()
+        for (r in payload.lessons) {
+            val local = dao.find(r.level, r.number) ?: continue
+            if (r.deleted) gone += local.id
+            else if (local.audioDownloaded && local.remoteAudioSha != null && r.audioSha != null && local.remoteAudioSha != r.audioSha) stale += local.id
+        }
+        if (gone.isNotEmpty() || stale.isNotEmpty()) beforeRemove(gone + stale)
+
+        var added = 0
+        var updated = 0
+        for (r in payload.lessons) {
+            val local = dao.find(r.level, r.number)
+            when {
+                r.deleted -> if (local != null) {
+                    dao.delete(listOf(local.id))
+                    files.deleteAll(local.id)
+                }
+                local == null -> {
+                    dao.insert(
+                        Lesson(
+                            level = r.level, number = r.number, title = r.title, sourceUrl = r.sourceUrl,
+                            addedAt = now(), transcript = r.transcript, audioDownloaded = false,
+                            timestamps = r.timestamps, vocab = r.vocab, remoteAudioSha = r.audioSha, remoteAudioSize = r.audioSize,
+                        ),
+                    )
+                    added++
+                }
+                else -> {
+                    dao.updateFromServer(local.id, r.title, r.sourceUrl, r.transcript, r.timestamps, r.vocab, r.audioSha, r.audioSize)
+                    if (local.id in stale) {
+                        files.deleteAudio(local.id)
+                        dao.setAudioDownloaded(local.id, false)
+                    }
+                    updated++
+                }
+            }
+        }
+        SyncResult(added, updated, gone.size + stale.size, payload.rev)
+    }
+
+    /** 下载（或清除后重新下载）一课的音频：服务器上有就从服务器下，没有再用来源链接去 ELLLO 下。 */
     suspend fun redownload(id: Long, onProgress: (Float) -> Unit = {}) {
         val lesson = dao.get(id) ?: return
+        if (server != null && lesson.remoteAudioSize > 0) {
+            server.downloadAudio(lesson.code, lesson.remoteAudioSha, files.audio(id), onProgress)
+            dao.setAudioDownloaded(id, true)
+            return
+        }
         val url = lesson.sourceUrl ?: throw IOException("这一课没有来源链接，无法重新下载")
         val parsed = ElloParser.parse(client.fetchHtml(url), url)
         client.download(parsed.audioUrl, files.audio(id), onProgress)

@@ -68,6 +68,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zjh.akali.data.Lesson
+import com.zjh.akali.ui.formatSize
 import com.zjh.akali.data.SortOrder
 import com.zjh.akali.ui.MainViewModel
 
@@ -271,7 +272,11 @@ private fun LessonCard(
                     }
                 } else {
                     Text(
-                        if (lesson.sourceUrl == null) "未下载 · 无来源链接" else "未下载",
+                        when {
+                            lesson.remoteAudioSize > 0 -> "未下载 · ${formatSize(lesson.remoteAudioSize)} · 点一下下载"
+                            lesson.sourceUrl == null -> "未下载 · 没有音频"
+                            else -> "未下载"
+                        },
                         style = MaterialTheme.typography.labelMedium,
                         color = colors.onSurfaceVariant,
                     )
@@ -281,7 +286,7 @@ private fun LessonCard(
             when {
                 selecting -> Checkbox(checked = selected, onCheckedChange = null)
                 isDownloading -> CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp)
-                !lesson.audioDownloaded -> IconButton(onClick = onDownload, enabled = lesson.sourceUrl != null) {
+                !lesson.audioDownloaded -> IconButton(onClick = onDownload, enabled = lesson.remoteAudioSize > 0 || lesson.sourceUrl != null) {
                     Icon(Icons.Rounded.CloudDownload, "下载音频", tint = colors.secondary)
                 }
                 isPlaying -> Icon(Icons.Rounded.GraphicEq, "正在播放", tint = colors.primary)

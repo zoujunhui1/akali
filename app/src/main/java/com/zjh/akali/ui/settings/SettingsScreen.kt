@@ -34,10 +34,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zjh.akali.ui.ImportUiState
 import com.zjh.akali.ui.MainViewModel
+import com.zjh.akali.ui.SyncUiState
 import com.zjh.akali.ui.formatSize
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,6 +51,8 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
     val lessons by vm.lessons.collectAsStateWithLifecycle()
     val storage by vm.storageBytes.collectAsStateWithLifecycle()
     val import by vm.import.collectAsStateWithLifecycle()
+    val sync by vm.syncState.collectAsStateWithLifecycle()
+    val lastSyncAt by vm.lastSyncAt.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { vm.refreshStorage() }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
@@ -70,6 +76,34 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         ) {
+            Section("云端同步") {
+                if (!vm.serverConfigured) {
+                    Text("这个安装包没有配置服务器，课程只用手机里已有的。", color = colors.onSurfaceVariant)
+                } else {
+                    Text(
+                        "课程文稿、逐句时间戳和词表从服务器同步；音频不会自动下载，在列表里点哪课下哪课。",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = { vm.sync() }, enabled = sync !is SyncUiState.Running) {
+                        Text(if (sync is SyncUiState.Running) "同步中…" else "立即同步")
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    when (val s = sync) {
+                        is SyncUiState.Error -> Text(s.message, color = colors.error)
+                        is SyncUiState.Done -> Text(s.message, color = colors.secondary)
+                        else -> Unit
+                    }
+                    if (lastSyncAt > 0) {
+                        Text(
+                            "上次同步：" + SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(lastSyncAt)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+
             Section("存储") {
                 Text("共 ${all.size} 课，已下载 ${all.count { it.audioDownloaded }} 课")
                 Text("占用空间 ${formatSize(storage)}", color = colors.onSurfaceVariant)

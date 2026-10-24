@@ -14,9 +14,10 @@ class ElloClient(
         .readTimeout(30, TimeUnit.SECONDS)
         .build(),
 ) {
-    private fun request(url: String) = Request.Builder()
+    private fun request(url: String, headers: Map<String, String> = emptyMap()) = Request.Builder()
         .url(url)
         .header("User-Agent", "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Chrome/130 Mobile Safari/537.36")
+        .apply { headers.forEach { (k, v) -> header(k, v) } }
         .build()
 
     suspend fun fetchHtml(url: String): String = withContext(Dispatchers.IO) {
@@ -27,11 +28,16 @@ class ElloClient(
     }
 
     /** 先写临时文件，完整后再改名，避免留下半截文件 */
-    suspend fun download(url: String, dest: File, onProgress: (Float) -> Unit = {}) = withContext(Dispatchers.IO) {
+    suspend fun download(
+        url: String,
+        dest: File,
+        onProgress: (Float) -> Unit = {},
+        headers: Map<String, String> = emptyMap(),
+    ) = withContext(Dispatchers.IO) {
         dest.parentFile?.mkdirs()
         val tmp = File(dest.parentFile, dest.name + ".part")
         try {
-            client.newCall(request(url)).execute().use { resp ->
+            client.newCall(request(url, headers)).execute().use { resp ->
                 if (!resp.isSuccessful) throw IOException("下载音频失败（HTTP ${resp.code}）")
                 val total = resp.body.contentLength()
                 resp.body.byteStream().use { input ->

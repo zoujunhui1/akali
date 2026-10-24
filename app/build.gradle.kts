@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -16,6 +18,13 @@ android {
     )
 
     defaultConfig {
+        // 服务器地址和 app 口令放在 local.properties（不进 git）：akali.server=...  akali.appToken=...
+        val local = Properties().apply {
+            rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+        }
+        buildConfigField("String", "SERVER_URL", "\"${local.getProperty("akali.server", "")}\"")
+        buildConfigField("String", "APP_TOKEN", "\"${local.getProperty("akali.appToken", "")}\"")
+
         applicationId = "com.zjh.akali"
         minSdk = 30
         targetSdk = 36
@@ -32,6 +41,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {

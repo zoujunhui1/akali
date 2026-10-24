@@ -33,6 +33,18 @@ interface LessonDao {
     @Query("UPDATE lessons SET vocab = :json WHERE id = :id")
     suspend fun setVocab(id: Long, json: String)
 
+    @Query("SELECT COUNT(*) FROM lessons")
+    suspend fun count(): Int
+
+    @Query(
+        "UPDATE lessons SET title = :title, sourceUrl = :sourceUrl, transcript = :transcript, timestamps = :timestamps, " +
+            "vocab = :vocab, remoteAudioSha = :sha, remoteAudioSize = :size WHERE id = :id",
+    )
+    suspend fun updateFromServer(
+        id: Long, title: String, sourceUrl: String?, transcript: String,
+        timestamps: String?, vocab: String?, sha: String?, size: Long,
+    )
+
     @Query("UPDATE lessons SET sourceUrl = :url WHERE id = :id")
     suspend fun setSourceUrl(id: Long, url: String)
 
