@@ -103,7 +103,7 @@ import java.io.File
 /** 词汇入口：按 Unit 分组列出所有主题。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VocabListScreen(vm: VocabViewModel, onOpen: (String) -> Unit, onOpenFavorites: () -> Unit, onBack: () -> Unit) {
+fun VocabListScreen(vm: VocabViewModel, onOpen: (String) -> Unit, onOpenFavorites: () -> Unit) {
     val lessons by vm.lessons.collectAsStateWithLifecycle()
     val marks by vm.marks.collectAsStateWithLifecycle()
     // 每个主题收藏了几个词；只数还存在的词条（主题被服务器改过、词条没了的不算）
@@ -117,7 +117,6 @@ fun VocabListScreen(vm: VocabViewModel, onOpen: (String) -> Unit, onOpenFavorite
         topBar = {
             TopAppBar(
                 title = { Text("词汇", fontWeight = FontWeight.Bold, color = colors.primary) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") } },
                 actions = {
                     IconButton(onClick = onOpenFavorites) {
                         BadgedBox(

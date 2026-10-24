@@ -72,7 +72,7 @@ import com.zjh.akali.ui.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ListScreen(vm: MainViewModel, onOpenPlayer: () -> Unit, onOpenSettings: () -> Unit, onOpenVocab: () -> Unit) {
+fun ListScreen(vm: MainViewModel, onOpenPlayer: () -> Unit) {
     val lessons by vm.lessons.collectAsStateWithLifecycle()
     val selection by vm.selection.collectAsStateWithLifecycle()
     val sort by vm.sort.collectAsStateWithLifecycle()
@@ -117,7 +117,7 @@ fun ListScreen(vm: MainViewModel, onOpenPlayer: () -> Unit, onOpenSettings: () -
                 )
             } else {
                 TopAppBar(
-                    title = { Text("akali", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
+                    title = { Text("听力", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary) },
                     actions = {
                         Box {
                             IconButton(onClick = { sortMenu = true }) { Icon(Icons.AutoMirrored.Rounded.Sort, "排序") }
@@ -134,8 +134,6 @@ fun ListScreen(vm: MainViewModel, onOpenPlayer: () -> Unit, onOpenSettings: () -
                                 }
                             }
                         }
-                        IconButton(onClick = onOpenVocab) { Icon(Icons.AutoMirrored.Rounded.MenuBook, "词汇") }
-                        IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "设置") }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 )
@@ -192,7 +190,7 @@ private fun EmptyState(modifier: Modifier = Modifier) {
             Text("还没有课程", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(6.dp))
             Text(
-                "点右上角 ＋ 粘贴 ELLLO 课程链接，\n或在设置里导入已有的课程文件夹。",
+                "课程会从云端同步下来。\n到底部的“我的”页点“立即同步”试试。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

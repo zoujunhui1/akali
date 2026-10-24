@@ -42,7 +42,7 @@ import com.zjh.akali.ui.formatSize
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
+fun SettingsScreen(vm: MainViewModel, onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     val lessons by vm.lessons.collectAsStateWithLifecycle()
     val storage by vm.storageBytes.collectAsStateWithLifecycle()
@@ -57,9 +57,9 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
         containerColor = colors.background,
         topBar = {
             TopAppBar(
-                title = { Text("设置", fontWeight = FontWeight.Bold) },
+                title = { Text("我的", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") }
+                    if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.background),
             )

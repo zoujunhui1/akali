@@ -35,6 +35,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = container.repository
     private val vocabRepo = container.vocabRepository
     private val prefs = container.prefs
+
+    var lastTab: String
+        get() = prefs.lastTab
+        set(v) { prefs.lastTab = v }
     val player = container.player
 
     private val sortOrder = MutableStateFlow(prefs.sortOrder)

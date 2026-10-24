@@ -59,6 +59,11 @@ class Prefs(context: Context) {
         get() = sp.getLong("marksRev", 0L)
         set(v) = sp.edit().putLong("marksRev", v).apply()
 
+    /** 上次停在哪个底部页签（list / vocab / settings） */
+    var lastTab: String
+        get() = sp.getString("lastTab", null) ?: "list"
+        set(v) = sp.edit().putString("lastTab", v).apply()
+
     var lastSyncAt: Long
         get() = sp.getLong("lastSyncAt", 0L)
         set(v) = sp.edit().putLong("lastSyncAt", v).apply()

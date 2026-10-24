@@ -12,7 +12,26 @@ import androidx.activity.viewModels
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.Composable
 import androidx.core.content.ContextCompat
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.zjh.akali.ui.MainViewModel
@@ -52,48 +71,77 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private class Tab(val route: String, val label: String, val icon: ImageVector)
+
+private val TABS = listOf(
+    Tab("list", "听力", Icons.Rounded.Headphones),
+    Tab("vocab", "词汇", Icons.AutoMirrored.Rounded.MenuBook),
+    Tab("settings", "我的", Icons.Rounded.Person),
+)
+
 @Composable
 private fun AkaliRoot(vm: MainViewModel) {
     val nav = rememberNavController()
     val vocabVm: VocabViewModel = viewModel()
-    NavHost(navController = nav, startDestination = "list") {
-        composable("list") {
-            ListScreen(
-                vm = vm,
-                onOpenPlayer = { nav.navigate("player") },
-                onOpenSettings = { nav.navigate("settings") },
-                onOpenVocab = { nav.navigate("vocab") },
-            )
-        }
-        composable("player") { PlayerScreen(vm, onBack = { nav.popBackStack() }) }
-        composable("settings") { SettingsScreen(vm, onBack = { nav.popBackStack() }) }
-        composable("vocab") {
-            VocabListScreen(
-                vocabVm,
-                onOpen = { nav.navigate("vocab/$it") },
-                onOpenFavorites = { nav.navigate("favorites") },
-                onBack = { nav.popBackStack() },
-            )
-        }
-        composable("favorites") {
-            VocabFavoritesScreen(
-                vocabVm,
-                onShowPicture = { code, key -> nav.navigate("vocab/$code?entry=$key") },
-                onBack = { nav.popBackStack() },
-            )
-        }
-        composable(
-            "vocab/{code}?entry={entry}",
-            arguments = listOf(navArgument("entry") { type = NavType.StringType; nullable = true; defaultValue = null }),
-        ) { entry ->
-            val code = entry.arguments?.getString("code").orEmpty()
-            VocabLessonScreen(
-                vocabVm, code, focusKey = entry.arguments?.getString("entry"),
-                onBack = { nav.popBackStack() }, onChat = { nav.navigate("vocab/$code/chat") },
-            )
-        }
-        composable("vocab/{code}/chat") { entry ->
-            VocabChatScreen(vocabVm, entry.arguments?.getString("code").orEmpty(), onBack = { nav.popBackStack() })
+    // 打开时回到上次停的页签
+    val start = remember { vm.lastTab.takeIf { saved -> TABS.any { it.route == saved } } ?: "list" }
+    val route = nav.currentBackStackEntryAsState().value?.destination?.route
+    val onTab = TABS.any { it.route == route }
+    LaunchedEffect(route) { if (onTab && route != null) vm.lastTab = route }
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            if (onTab) {
+                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                    TABS.forEach { tab ->
+                        NavigationBarItem(
+                            selected = route == tab.route,
+                            onClick = {
+                                nav.navigate(tab.route) {
+                                    popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = { Icon(tab.icon, null) },
+                            label = { Text(tab.label) },
+                        )
+                    }
+                }
+            }
+        },
+    ) { inner ->
+        NavHost(navController = nav, startDestination = start, modifier = Modifier.padding(inner).consumeWindowInsets(inner)) {
+            composable("list") { ListScreen(vm = vm, onOpenPlayer = { nav.navigate("player") }) }
+            composable("player") { PlayerScreen(vm, onBack = { nav.popBackStack() }) }
+            composable("settings") { SettingsScreen(vm) }
+            composable("vocab") {
+                VocabListScreen(
+                    vocabVm,
+                    onOpen = { nav.navigate("vocab/$it") },
+                    onOpenFavorites = { nav.navigate("favorites") },
+                )
+            }
+            composable("favorites") {
+                VocabFavoritesScreen(
+                    vocabVm,
+                    onShowPicture = { code, key -> nav.navigate("vocab/$code?entry=$key") },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+            composable(
+                "vocab/{code}?entry={entry}",
+                arguments = listOf(navArgument("entry") { type = NavType.StringType; nullable = true; defaultValue = null }),
+            ) { entry ->
+                val code = entry.arguments?.getString("code").orEmpty()
+                VocabLessonScreen(
+                    vocabVm, code, focusKey = entry.arguments?.getString("entry"),
+                    onBack = { nav.popBackStack() }, onChat = { nav.navigate("vocab/$code/chat") },
+                )
+            }
+            composable("vocab/{code}/chat") { entry ->
+                VocabChatScreen(vocabVm, entry.arguments?.getString("code").orEmpty(), onBack = { nav.popBackStack() })
+            }
         }
     }
 }
