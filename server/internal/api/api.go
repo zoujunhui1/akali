@@ -29,7 +29,7 @@ type Config struct {
 	AdminToken string
 	AudioDir   string
 	AI         *llm.Client // nil = no AI key configured
-	AIPerDay   int         // 0 = 200
+	AIPerDay   int         // 0 = 1000
 }
 
 type Server struct {
@@ -49,7 +49,7 @@ func New(cfg Config, s *store.Store) (*gin.Engine, error) {
 		return nil, err
 	}
 	if cfg.AIPerDay == 0 {
-		cfg.AIPerDay = 200
+		cfg.AIPerDay = 1000
 	}
 	srv := &Server{cfg: cfg, store: s, limit: &limiter{max: cfg.AIPerDay}}
 
@@ -71,6 +71,7 @@ func New(cfg Config, s *store.Store) (*gin.Engine, error) {
 	srv.vocabRoutes(app, admin)
 	srv.aiRoutes(app)
 	srv.marksRoutes(app)
+	srv.readingRoutes(app, admin)
 	return r, nil
 }
 
