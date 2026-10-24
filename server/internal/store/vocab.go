@@ -169,3 +169,19 @@ func (s *Store) SetVocabNote(ctx context.Context, unit, number int, key string, 
 			string(note), rev, unit, number))
 	})
 }
+
+// ClearVocabNotes removes every generated explanation and bumps the revision of the topics that had any,
+// so phones drop them on their next sync. It returns how many topics were cleared.
+func (s *Store) ClearVocabNotes(ctx context.Context) (int, error) {
+	cleared := 0
+	err := s.change(ctx, func(tx *sql.Tx, rev int64) error {
+		res, err := tx.ExecContext(ctx, `UPDATE vocab_lessons SET notes = NULL, rev = ? WHERE notes IS NOT NULL AND deleted = 0`, rev)
+		if err != nil {
+			return err
+		}
+		n, err := res.RowsAffected()
+		cleared = int(n)
+		return err
+	})
+	return cleared, err
+}

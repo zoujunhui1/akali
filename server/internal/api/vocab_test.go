@@ -101,3 +101,25 @@ func TestVocabRejectsBadInput(t *testing.T) {
 	mustOK(t, do(r, "PUT", "/admin/vocab/V01-01/bundle", adminTok, bytes.NewReader(zipOf(t, map[string]string{"../evil": "x"}))), 400)
 	mustOK(t, do(r, "PUT", "/admin/vocab/V01-09/bundle", adminTok, bytes.NewReader(zipOf(t, map[string]string{"a": "x"}))), 404)
 }
+
+func TestClearVocabNotes(t *testing.T) {
+	r, _ := newServer(t)
+	mustOK(t, do(r, "PUT", "/admin/vocab/V01-17", adminTok, bytes.NewBufferString(vocabDoc)), 204)
+	mustOK(t, do(r, "PUT", "/admin/vocab/V01-18", adminTok, bytes.NewBufferString(vocabDoc)), 204)
+	var l struct {
+		Rev int64 `json:"rev"`
+	}
+	json.Unmarshal(do(r, "GET", "/api/v1/vocab?since=0", appTok, nil).Body.Bytes(), &l)
+
+	// nothing to clear yet: nothing changes for the phones
+	w := do(r, "DELETE", "/admin/vocab-notes", adminTok, nil)
+	mustOK(t, w, 200)
+	var out struct {
+		Cleared int `json:"cleared"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &out)
+	if out.Cleared != 0 {
+		t.Fatalf("cleared %d, want 0", out.Cleared)
+	}
+	mustOK(t, do(r, "DELETE", "/admin/vocab-notes", "wrong", nil), 401)
+}

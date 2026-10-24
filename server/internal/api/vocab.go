@@ -27,6 +27,17 @@ func (s *Server) vocabRoutes(app, admin *gin.RouterGroup) {
 	admin.PUT("/vocab/:code", s.vocabUpsert)
 	admin.PUT("/vocab/:code/bundle", s.vocabPutBundle)
 	admin.DELETE("/vocab/:code", s.vocabRemove)
+	admin.DELETE("/vocab-notes", s.vocabClearNotes)
+}
+
+// DELETE /admin/vocab-notes  ->  {cleared}: drop all saved AI explanations of vocabulary entries.
+func (s *Server) vocabClearNotes(c *gin.Context) {
+	n, err := s.store.ClearVocabNotes(c.Request.Context())
+	if err != nil {
+		fail(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"cleared": n})
 }
 
 func vocabCode(c *gin.Context) (unit, number int, ok bool) {

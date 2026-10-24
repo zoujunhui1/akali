@@ -177,3 +177,37 @@ func TestAIFailureDoesNotLeakTheKey(t *testing.T) {
 		t.Fatal("the key leaked into the response")
 	}
 }
+
+func TestClearingAllNotesReachesThePhonesAsAChange(t *testing.T) {
+	var calls int32
+	r := aiServer(t, &calls, func(_ string, w http.ResponseWriter) { reply(w, goodNote) }, 50)
+	mustOK(t, do(r, "POST", "/api/v1/vocab/V01-17/entries/31-1/explain", appTok, nil), 200)
+
+	type synced struct {
+		Rev     int64 `json:"rev"`
+		Lessons []struct {
+			Notes map[string]note `json:"notes"`
+		} `json:"lessons"`
+	}
+	var before synced
+	json.Unmarshal(do(r, "GET", "/api/v1/vocab?since=0", appTok, nil).Body.Bytes(), &before)
+	if len(before.Lessons) != 1 || len(before.Lessons[0].Notes) != 1 {
+		t.Fatalf("expected one saved note: %+v", before)
+	}
+
+	w := do(r, "DELETE", "/admin/vocab-notes", adminTok, nil)
+	mustOK(t, w, 200)
+	if !strings.Contains(w.Body.String(), `"cleared":1`) {
+		t.Fatalf("unexpected answer: %s", w.Body.String())
+	}
+	// the topic comes back as changed, now without notes
+	var after synced
+	json.Unmarshal(do(r, "GET", "/api/v1/vocab?since="+itoa(before.Rev), appTok, nil).Body.Bytes(), &after)
+	if len(after.Lessons) != 1 || len(after.Lessons[0].Notes) != 0 {
+		t.Fatalf("notes should be gone and the topic marked changed: %+v", after)
+	}
+	// nothing left: a second clear changes nothing
+	if w := do(r, "DELETE", "/admin/vocab-notes", adminTok, nil); !strings.Contains(w.Body.String(), `"cleared":0`) {
+		t.Fatalf("second clear: %s", w.Body.String())
+	}
+}

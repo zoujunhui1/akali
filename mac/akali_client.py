@@ -115,6 +115,16 @@ class Client:
     def delete_article(self, code):
         self._call("DELETE", f"/admin/articles/{code}", self.admin)
 
+    def vocab_notes_count(self):
+        """How many vocabulary topics have saved AI explanations, and how many explanations in all."""
+        out = json.loads(self._call("GET", "/api/v1/vocab?since=0", self.app))
+        topics = [l for l in out["lessons"] if l.get("notes")]
+        return len(topics), sum(len(l["notes"]) for l in topics)
+
+    def clear_vocab_notes(self):
+        """Delete every saved AI explanation of vocabulary entries; returns how many topics were cleared."""
+        return json.loads(self._call("DELETE", "/admin/vocab-notes", self.admin))["cleared"]
+
     def put_dict(self, data):
         self._call("PUT", "/admin/dict", self.admin, data, "application/octet-stream")
 
