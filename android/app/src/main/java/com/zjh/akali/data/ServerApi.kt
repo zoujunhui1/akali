@@ -54,6 +54,15 @@ data class RemoteMark(val code: String, val key: String, val state: String)
 
 data class MarksPayload(val rev: Long, val marks: List<RemoteMark>)
 
+/** 服务器上字典文件的大小和校验值。 */
+data class DictInfo(val size: Long, val sha256: String)
+
+/** AI 对一个词在这句话里的讲解（不存）。 */
+data class WordHelp(val zh: String, val definition: String, val note: String)
+
+/** AI 对一个句子的讲解（不存）。 */
+data class SentenceHelp(val zh: String, val grammar: String, val simple: String)
+
 interface ServerApi {
     /** 版本号 [since] 之后有变化的课（含已删除的）。 */
     suspend fun changes(since: Long): SyncPayload
@@ -78,6 +87,30 @@ interface ServerApi {
 
     /** 版本号 [since] 之后变化的标记（含取消的）。 */
     suspend fun marksChanges(since: Long): MarksPayload
+
+    /** 阅读：版本号 [since] 之后变化的文章（含已删除的）。 */
+    suspend fun articleChanges(since: Long): ArticlePayload = throw IOException("不支持")
+
+    /** 阅读：版本号 [since] 之后变化的生词本词条（含删除的）。 */
+    suspend fun notebookChanges(since: Long): NotebookPayload = throw IOException("不支持")
+
+    /** 上传生词本词条，返回服务器的新版本号。 */
+    suspend fun putNotebook(words: List<RemoteWord>): Long = throw IOException("不支持")
+
+    /** 服务器上的字典文件信息；还没上传时为 null。 */
+    suspend fun dictInfo(): DictInfo? = throw IOException("不支持")
+
+    /** 下载字典文件到 [dest]，校验值不对会抛 IOException 并且不留文件。 */
+    suspend fun downloadDict(sha256: String?, dest: File, onProgress: (Float) -> Unit = {}): Unit = throw IOException("不支持")
+
+    /** 阅读：让 AI 结合句子讲一个词。每次都是新请求，服务器不存结果。 */
+    suspend fun readWord(word: String, sentence: String): WordHelp = throw IOException("不支持")
+
+    /** 阅读：让 AI 讲一个句子（翻译、语法、简单说法）。不存。 */
+    suspend fun readSentence(sentence: String): SentenceHelp = throw IOException("不支持")
+
+    /** 阅读：让 AI 翻译一段文字。不存。 */
+    suspend fun translate(text: String): String = throw IOException("不支持")
 }
 
 object MarksJson {
@@ -225,6 +258,68 @@ class HttpServerApi(
             if (!resp.isSuccessful) throw IOException("同步标记失败（服务器返回 ${resp.code}）")
             MarksJson.parse(resp.body.string())
         }
+    }
+
+    override suspend fun articleChanges(since: Long): ArticlePayload = withContext(Dispatchers.IO) {
+        val req = Request.Builder().url("$base/api/v1/articles?since=$since").header("Authorization", "Bearer $token").build()
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) throw IOException("同步文章失败（服务器返回 ${resp.code}）")
+            ArticleJson.parse(resp.body.string())
+        }
+    }
+
+    override suspend fun notebookChanges(since: Long): NotebookPayload = withContext(Dispatchers.IO) {
+        val req = Request.Builder().url("$base/api/v1/notebook?since=$since").header("Authorization", "Bearer $token").build()
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) throw IOException("同步生词本失败（服务器返回 ${resp.code}）")
+            NotebookJson.parse(resp.body.string())
+        }
+    }
+
+    override suspend fun putNotebook(words: List<RemoteWord>): Long = withContext(Dispatchers.IO) {
+        val body = NotebookJson.body(words).toRequestBody("application/json".toMediaType())
+        val req = Request.Builder().url("$base/api/v1/notebook").header("Authorization", "Bearer $token").put(body).build()
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) throw IOException("上传生词本失败（服务器返回 ${resp.code}）")
+            JSONObject(resp.body.string()).getLong("rev")
+        }
+    }
+
+    override suspend fun dictInfo(): DictInfo? = withContext(Dispatchers.IO) {
+        val req = Request.Builder().url("$base/api/v1/dict").header("Authorization", "Bearer $token").build()
+        client.newCall(req).execute().use { resp ->
+            if (resp.code == 404) return@withContext null
+            if (!resp.isSuccessful) throw IOException("查询字典失败（服务器返回 ${resp.code}）")
+            JSONObject(resp.body.string()).let { DictInfo(it.getLong("size"), it.getString("sha256")) }
+        }
+    }
+
+    override suspend fun downloadDict(sha256: String?, dest: File, onProgress: (Float) -> Unit) {
+        downloader.download("$base/api/v1/dict/file", dest, onProgress, auth)
+        if (sha256 != null && sha256(dest) != sha256) {
+            dest.delete()
+            throw IOException("下载的字典校验不通过，请重试")
+        }
+    }
+
+    private fun postJson(path: String, body: JSONObject): String {
+        val req = Request.Builder().url("$base$path").header("Authorization", "Bearer $token")
+            .post(body.toString().toRequestBody("application/json".toMediaType())).build()
+        return aiCall(req)
+    }
+
+    override suspend fun readWord(word: String, sentence: String): WordHelp = withContext(Dispatchers.IO) {
+        val o = JSONObject(postJson("/api/v1/read/word", JSONObject().put("word", word).put("sentence", sentence)))
+        WordHelp(o.getString("zh"), o.getString("definition"), o.optString("note"))
+    }
+
+    override suspend fun readSentence(sentence: String): SentenceHelp = withContext(Dispatchers.IO) {
+        val o = JSONObject(postJson("/api/v1/read/sentence", JSONObject().put("sentence", sentence)))
+        SentenceHelp(o.getString("zh"), o.optString("grammar"), o.optString("simple"))
+    }
+
+    override suspend fun translate(text: String): String = withContext(Dispatchers.IO) {
+        JSONObject(postJson("/api/v1/read/translate", JSONObject().put("text", text))).getString("zh")
     }
 
     /** AI 请求比较慢，等久一点；服务器出错时它的错误信息本来就是写给用户看的。 */

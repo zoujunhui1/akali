@@ -42,7 +42,7 @@ import com.zjh.akali.ui.formatSize
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: MainViewModel, onBack: (() -> Unit)? = null) {
+fun SettingsScreen(vm: MainViewModel, reading: com.zjh.akali.ui.reading.ReadingViewModel? = null, onBack: (() -> Unit)? = null) {
     val context = LocalContext.current
     val lessons by vm.lessons.collectAsStateWithLifecycle()
     val storage by vm.storageBytes.collectAsStateWithLifecycle()
@@ -92,6 +92,29 @@ fun SettingsScreen(vm: MainViewModel, onBack: (() -> Unit)? = null) {
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.onSurfaceVariant,
                         )
+                    }
+                }
+            }
+
+            if (reading != null) {
+                val dict by reading.dictState.collectAsStateWithLifecycle()
+                Section("字典（阅读时点词用）") {
+                    when {
+                        dict.downloading -> {
+                            Text("正在下载字典…")
+                            Spacer(Modifier.height(8.dp))
+                            androidx.compose.material3.LinearProgressIndicator(progress = { dict.progress }, modifier = Modifier.fillMaxWidth())
+                        }
+                        dict.ready -> {
+                            Text("已下载 · ${formatSize(dict.size)}，点词离线秒查", color = colors.secondary)
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(onClick = reading::downloadDict) { Text("重新下载") }
+                        }
+                        else -> {
+                            Text("字典还没下载。下载后在文章里点词，不用联网就能看中文意思、音标和考试标签。", style = MaterialTheme.typography.bodyMedium)
+                            Spacer(Modifier.height(8.dp))
+                            Button(onClick = reading::downloadDict, enabled = vm.serverConfigured) { Text("下载字典") }
+                        }
                     }
                 }
             }

@@ -49,6 +49,12 @@ import com.zjh.akali.ui.theme.AkaliTheme
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.zjh.akali.ui.vocab.VocabWordScreen
+import com.zjh.akali.ui.reading.ArticleScreen
+import com.zjh.akali.ui.reading.NotebookReviewScreen
+import com.zjh.akali.ui.reading.NotebookScreen
+import com.zjh.akali.ui.reading.ReadingListScreen
+import com.zjh.akali.ui.reading.ReadingViewModel
+import androidx.compose.material.icons.automirrored.rounded.Article
 import com.zjh.akali.ui.vocab.VocabFavoritesScreen
 import com.zjh.akali.ui.vocab.VocabLessonScreen
 import com.zjh.akali.ui.vocab.VocabListScreen
@@ -83,6 +89,7 @@ private class Tab(val route: String, val label: String, val icon: ImageVector)
 private val TABS = listOf(
     Tab("list", "听力", Icons.Rounded.Headphones),
     Tab("vocab", "词汇", Icons.AutoMirrored.Rounded.MenuBook),
+    Tab("reading", "阅读", Icons.AutoMirrored.Rounded.Article),
     Tab("settings", "我的", Icons.Rounded.Person),
 )
 
@@ -90,6 +97,7 @@ private val TABS = listOf(
 private fun AkaliRoot(vm: MainViewModel) {
     val nav = rememberNavController()
     val vocabVm: VocabViewModel = viewModel()
+    val readingVm: ReadingViewModel = viewModel()
     // 打开时回到上次停的页签
     val start = remember { vm.lastTab.takeIf { saved -> TABS.any { it.route == saved } } ?: "list" }
     val route = nav.currentBackStackEntryAsState().value?.destination?.route
@@ -146,7 +154,17 @@ private fun AkaliRoot(vm: MainViewModel) {
         ) {
             composable("list") { ListScreen(vm = vm, onOpenPlayer = { nav.navigate("player") }) }
             composable("player") { PlayerScreen(vm, onBack = { nav.popBackStack() }) }
-            composable("settings") { SettingsScreen(vm) }
+            composable("settings") { SettingsScreen(vm, readingVm) }
+            composable("reading") {
+                ReadingListScreen(readingVm, onOpen = { nav.navigate("reading/$it") }, onOpenNotebook = { nav.navigate("notebook") })
+            }
+            composable("reading/{code}") { entry ->
+                ArticleScreen(readingVm, entry.arguments?.getString("code").orEmpty(), onBack = { nav.popBackStack() })
+            }
+            composable("notebook") {
+                NotebookScreen(readingVm, onBack = { nav.popBackStack() }, onReview = { nav.navigate("notebook/review") })
+            }
+            composable("notebook/review") { NotebookReviewScreen(readingVm, onBack = { nav.popBackStack() }) }
             composable("vocab") {
                 VocabListScreen(
                     vocabVm,

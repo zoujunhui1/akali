@@ -3,7 +3,11 @@ package com.zjh.akali
 import android.content.Context
 import androidx.test.platform.app.InstrumentationRegistry
 import com.zjh.akali.data.AppDatabase
+import com.zjh.akali.data.ArticlePayload
 import com.zjh.akali.data.ChatMessage
+import com.zjh.akali.data.NotebookPayload
+import com.zjh.akali.data.RemoteArticle
+import com.zjh.akali.data.RemoteWord
 import com.zjh.akali.data.EntryNote
 import com.zjh.akali.data.LessonFiles
 import com.zjh.akali.data.LessonRepository
@@ -77,6 +81,32 @@ internal class FakeServer : ServerApi {
     override suspend fun marksChanges(since: Long): MarksPayload {
         if (failMarks) throw IOException("offline")
         return MarksPayload(marksRev, serverMarks.map { RemoteMark(it.key.first, it.key.second, it.value) })
+    }
+
+    var articles = listOf<RemoteArticle>()
+    var articleRev = 1L
+    val askedArticleSince = mutableListOf<Long>()
+
+    override suspend fun articleChanges(since: Long): ArticlePayload {
+        askedArticleSince += since
+        return ArticlePayload(articleRev, articles)
+    }
+
+    val serverWords = linkedMapOf<String, RemoteWord>()
+    var notebookRev = 1L
+    var failNotebook = false
+    val pushedWords = mutableListOf<List<RemoteWord>>()
+
+    override suspend fun putNotebook(words: List<RemoteWord>): Long {
+        if (failNotebook) throw IOException("offline")
+        pushedWords += words
+        words.forEach { serverWords[it.id] = it }
+        return ++notebookRev
+    }
+
+    override suspend fun notebookChanges(since: Long): NotebookPayload {
+        if (failNotebook) throw IOException("offline")
+        return NotebookPayload(notebookRev, serverWords.values.toList())
     }
 
     val explained = mutableListOf<String>()

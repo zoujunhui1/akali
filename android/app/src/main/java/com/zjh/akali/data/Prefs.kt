@@ -64,6 +64,21 @@ class Prefs(context: Context) {
         get() = sp.getString("lastTab", null) ?: "list"
         set(v) = sp.edit().putString("lastTab", v).apply()
 
+    /** 文章已同步到的服务器版本号 */
+    var articleRev: Long
+        get() = sp.getLong("articleRev", 0L)
+        set(v) = sp.edit().putLong("articleRev", v).apply()
+
+    /** 生词本已同步到的服务器版本号 */
+    var notebookRev: Long
+        get() = sp.getLong("notebookRev", 0L)
+        set(v) = sp.edit().putLong("notebookRev", v).apply()
+
+    /** 阅读字号档位（0..4） */
+    var readingFont: Int
+        get() = sp.getInt("readingFont", 2).coerceIn(0, 4)
+        set(v) = sp.edit().putInt("readingFont", v).apply()
+
     var lastSyncAt: Long
         get() = sp.getLong("lastSyncAt", 0L)
         set(v) = sp.edit().putLong("lastSyncAt", v).apply()

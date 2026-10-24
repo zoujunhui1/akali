@@ -89,13 +89,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val v = vocabRepo.sync(prefs.vocabRev)
                 prefs.vocabRev = v.rev
                 prefs.marksRev = container.markRepository.sync(prefs.marksRev)
+                val a = container.articleRepository.sync(prefs.articleRev)
+                prefs.articleRev = a.rev
+                prefs.notebookRev = container.notebookRepository.sync(prefs.notebookRev)
                 prefs.lastSyncAt = System.currentTimeMillis()
                 _lastSyncAt.value = prefs.lastSyncAt
                 refreshStorage()
-                val changed = r.added + r.updated + r.removed + v.added + v.updated + v.removed
+                val changed = r.added + r.updated + r.removed + v.added + v.updated + v.removed + a.added + a.updated + a.removed
                 val text = if (changed == 0) "已是最新" else "已同步：新增 ${r.added} 课，更新 ${r.updated} 课" +
                     (if (r.removed > 0) "，移除 ${r.removed} 课" else "") +
-                    (if (v.added + v.updated + v.removed > 0) "；词汇主题 ${v.added + v.updated + v.removed} 个有变化" else "")
+                    (if (v.added + v.updated + v.removed > 0) "；词汇主题 ${v.added + v.updated + v.removed} 个有变化" else "") +
+                    (if (a.added + a.updated + a.removed > 0) "；文章 ${a.added + a.updated + a.removed} 篇有变化" else "")
                 _sync.value = SyncUiState.Done(text)
                 if (!auto || changed > 0) say(text)
             } catch (e: CancellationException) {
