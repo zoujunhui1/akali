@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>akali studio</title>
+<style>
+  :root {
+    --crimson: #c8283d; --violet: #6b4fa0; --ink: #1b1722; --muted: #625b70;
+    --bg: #f5f2f7; --card: #fff; --line: #e4deeb; --ok: #1e8e5a; --warn: #b26a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --crimson: #f0566a; --violet: #b59ce6; --ink: #e9e4ee; --muted: #a9a2b8;
+            --bg: #15121a; --card: #201c27; --line: #383241; --ok: #5bd39b; --warn: #ffb454; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.5 -apple-system, "PingFang SC", "Helvetica Neue", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; color: var(--crimson); }
+  .sub { color: var(--muted); margin-bottom: 20px; }
+  .card { background: var(--card); border-radius: 16px; padding: 16px; margin-bottom: 16px; border: 1px solid var(--line); }
+  h2 { font-size: 15px; margin: 0 0 10px; color: var(--violet); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  input[type=text] { flex: 1; min-width: 240px; padding: 10px 12px; border-radius: 10px; font-size: 15px;
+                     border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+  button { border: 0; border-radius: 10px; padding: 9px 14px; font-size: 14px; cursor: pointer;
+           background: var(--crimson); color: #fff; font-weight: 600; }
+  button.ghost { background: transparent; color: var(--violet); border: 1px solid var(--line); font-weight: 500; }
+  button.small { padding: 5px 10px; font-size: 13px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .err { color: var(--crimson); margin-top: 8px; }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .job { border-top: 1px solid var(--line); padding: 10px 0; }
+  .job:first-of-type { border-top: 0; padding-top: 0; }
+  .job b { font-weight: 600; }
+  .tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; margin-left: 6px; }
+  .t-running, .t-queued { background: color-mix(in srgb, var(--violet) 18%, transparent); color: var(--violet); }
+  .t-done { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .t-error { background: color-mix(in srgb, var(--crimson) 18%, transparent); color: var(--crimson); }
+  pre { margin: 6px 0 0; white-space: pre-wrap; font: 12.5px/1.5 ui-monospace, Menlo, monospace; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-weight: 500; color: var(--muted); font-size: 13px; padding: 6px 8px; }
+  td { padding: 8px; border-top: 1px solid var(--line); vertical-align: middle; }
+  .code { font-weight: 700; color: var(--crimson); white-space: nowrap; }
+  .ok { color: var(--ok); } .no { color: var(--warn); } .na { color: var(--muted); }
+  .acts { white-space: nowrap; text-align: right; }
+  .acts button { margin-left: 4px; }
+  @media (max-width: 700px) { .hide-s { display: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>akali studio</h1>
+  <div class="sub">在这里添加新课、更新词表。所有处理都在这台 Mac 上完成，做完自动传到服务器，手机上点“立即同步”就能看到。</div>
+
+  <div class="card">
+    <h2>添加新课</h2>
+    <div class="row">
+      <input id="url" type="text" placeholder="粘贴 ELLLO 课程链接，例如 https://elllo.org/video/B2INT/B2-050-….htm">
+      <button id="go">处理</button>
+    </div>
+    <div id="urlErr" class="err"></div>
+    <div class="hint">会依次：抓取页面和音频 → 语音识别生成逐句时间戳（一课几分钟）→ 上传。飞书里的词等你整理好了再点“更新词表”。</div>
+  </div>
+
+  <div class="card" id="jobsCard" hidden>
+    <h2>任务</h2>
+    <div id="jobs"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="margin-bottom:10px">
+      <h2 style="margin:0;flex:1">课程</h2>
+      <input id="filter" type="text" placeholder="筛选，如 B2-05" style="flex:0 1 180px;min-width:120px">
+      <button class="ghost" id="allVocab">更新全部词表</button>
+    </div>
+    <div id="srvErr" class="err"></div>
+    <table>
+      <thead><tr><th>课程</th><th>音频</th><th>时间戳</th><th>词表</th><th class="hide-s">服务器</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let lessons = [];
+
+async function api(path, body) {
+  const res = await fetch(path, body === undefined ? {} : {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.status);
+  return data;
+}
+
+function cell(text, cls) { const td = document.createElement("td"); td.textContent = text; td.className = cls || ""; return td; }
+
+function renderRows() {
+  const q = $("filter").value.trim().toLowerCase();
+  const body = $("rows"); body.textContent = "";
+  for (const l of lessons) {
+    if (q && !(l.code + " " + l.title).toLowerCase().includes(q)) continue;
+    const tr = document.createElement("tr");
+    const name = document.createElement("td");
+    const code = document.createElement("span"); code.className = "code"; code.textContent = l.code;
+    name.append(code, " " + l.title); tr.append(name);
+    tr.append(cell(l.local.audio ? "✓" : "没有", l.local.audio ? "ok" : "no"));
+    tr.append(cell(l.local.timestamps ? l.local.timestamps + " 句" : "没有", l.local.timestamps ? "ok" : "no"));
+    tr.append(cell(l.local.vocab === null ? "还没有" : l.local.vocab + " 条", l.local.vocab === null ? "na" : "ok"));
+    let srv = "—", cls = "na";
+    if (l.server) {
+      const same = l.server.present && l.server.audio && l.server.timestamps === l.local.timestamps &&
+                   (l.server.vocab || 0) === (l.local.vocab || 0);
+      srv = !l.server.present ? "未上传" : same ? "已是最新" : "和本地不一致";
+      cls = same ? "ok" : "no";
+    }
+    const s = cell(srv, cls + " hide-s"); tr.append(s);
+    const acts = document.createElement("td"); acts.className = "acts";
+    for (const [label, path] of [["更新词表", "/api/vocab"], ["重新识别", "/api/redo"], ["重新上传", "/api/upload"]]) {
+      const b = document.createElement("button"); b.className = "ghost small"; b.textContent = label;
+      b.onclick = () => run(path, { code: l.code }, label + " " + l.code);
+      acts.append(b);
+    }
+    tr.append(acts); body.append(tr);
+  }
+}
+
+async function run(path, body, label) {
+  try { await api(path, body); pollJobs(); } catch (e) { alert(label + " 失败：" + e.message); }
+}
+
+async function loadLessons() {
+  try {
+    const d = await api("/api/lessons");
+    lessons = d.lessons; $("srvErr").textContent = d.server_error ? "连不上服务器：" + d.server_error : "";
+    renderRows();
+  } catch (e) { $("srvErr").textContent = e.message; }
+}
+
+let timer = null, wasBusy = false;
+async function pollJobs() {
+  const d = await api("/api/jobs");
+  const box = $("jobs"); box.textContent = "";
+  $("jobsCard").hidden = d.jobs.length === 0;
+  for (const j of d.jobs) {
+    const div = document.createElement("div"); div.className = "job";
+    const t = document.createElement("b"); t.textContent = j.title;
+    const tag = document.createElement("span"); tag.className = "tag t-" + j.state;
+    tag.textContent = { queued: "排队中", running: "进行中", done: "完成", error: "出错" }[j.state];
+    div.append(t, tag);
+    if (j.error) { const e = document.createElement("div"); e.className = "err"; e.textContent = j.error; div.append(e); }
+    if (j.log.length) { const p = document.createElement("pre"); p.textContent = j.log.join("\n"); div.append(p); }
+    box.append(div);
+  }
+  const busy = d.jobs.some((j) => j.state === "queued" || j.state === "running");
+  if (wasBusy && !busy) loadLessons();
+  wasBusy = busy;
+  clearTimeout(timer);
+  if (busy) timer = setTimeout(pollJobs, 1500);
+}
+
+$("go").onclick = async () => {
+  $("urlErr").textContent = "";
+  const url = $("url").value.trim();
+  if (!url) return;
+  try { await api("/api/process", { url }); $("url").value = ""; pollJobs(); }
+  catch (e) { $("urlErr").textContent = e.message; }
+};
+$("url").addEventListener("keydown", (e) => { if (e.key === "Enter") $("go").click(); });
+$("allVocab").onclick = () => run("/api/vocab", {}, "更新全部词表");
+$("filter").oninput = renderRows;
+loadLessons(); pollJobs();
+</script>
+</body>
+</html>

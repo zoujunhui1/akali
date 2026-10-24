@@ -171,43 +171,54 @@ def locate(sentences, fields):
     return kind, None
 
 
+def lesson_rows(records):
+    """Feishu records -> {'B2-036': [row, ...]} for rows that name a lesson in the 视频 field."""
+    by_lesson = {}
+    for f in records:
+        m = re.match(r"([BC]\d-\d{3})", f.get("视频", "") or "")
+        if m and f.get("英文"):
+            by_lesson.setdefault(m.group(1), []).append(f)
+    return by_lesson
+
+
+def build_vocab(sentences, rows):
+    """Locate each Feishu row in the lesson's sentences. Returns (vocab.json document, unmatched rows)."""
+    items, unmatched = [], []
+    for f in rows:
+        kind, hits = locate(sentences, f)
+        if not hits:
+            unmatched.append(f)
+            continue
+        for idx, text in hits:
+            items.append({
+                "sentence": idx, "text": text, "type": kind, "en": clean_en(f["英文"]),
+                "ipa": f.get("音标", ""), "zh": f.get("中文", ""), "example": f.get("例句", ""),
+                "note": f.get("备注", ""), "star": bool(f.get("重要度")),
+                "mastery": (f.get("掌握") or "").replace("🔴", "").replace("🟡", "").replace("🟢", "").strip(),
+            })
+    return {"version": 1, "items": items}, unmatched
+
+
 def main():
     root = Path(sys.argv[1])
     folders = {p.name[:6].upper(): p for p in root.iterdir() if p.is_dir() and (p / "timestamps.json").exists()}
     records = feishu_records()
-    by_lesson, skipped = {}, 0
-    for f in records:
-        m = re.match(r"([BC]\d-\d{3})", f.get("视频", "") or "")
-        if not m or not f.get("英文"):
-            skipped += 1
-            continue
-        by_lesson.setdefault(m.group(1), []).append(f)
+    by_lesson = lesson_rows(records)
     total = found = 0
-    unmatched = []
+    unmatched_all = []
     for key, rows in sorted(by_lesson.items()):
         folder = folders.get(key)
         if not folder:
             print(f"{key}: no folder, {len(rows)} entries skipped")
             continue
         sentences = json.loads((folder / "timestamps.json").read_text(encoding="utf-8"))["sentences"]
-        items = []
-        for f in rows:
-            total += 1
-            kind, hits = locate(sentences, f)
-            if not hits:
-                unmatched.append((key, kind, f.get("英文"), f.get("例句", "")))
-                continue
-            found += 1
-            for idx, text in hits:
-                items.append({
-                    "sentence": idx, "text": text, "type": kind, "en": clean_en(f["英文"]),
-                    "ipa": f.get("音标", ""), "zh": f.get("中文", ""), "example": f.get("例句", ""),
-                    "note": f.get("备注", ""), "star": bool(f.get("重要度")),
-                    "mastery": (f.get("掌握") or "").replace("🔴", "").replace("🟡", "").replace("🟢", "").strip(),
-                })
-        (folder / "vocab.json").write_text(json.dumps({"version": 1, "items": items}, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(f"records {len(records)}, without lesson {skipped}, lessons {len(by_lesson)}, matched {found}/{total}")
-    for u in unmatched:
+        doc, unmatched = build_vocab(sentences, rows)
+        total += len(rows)
+        found += len(rows) - len(unmatched)
+        unmatched_all += [(key, f.get("英文"), f.get("例句", "")) for f in unmatched]
+        (folder / "vocab.json").write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"records {len(records)}, lessons {len(by_lesson)}, matched {found}/{total}")
+    for u in unmatched_all:
         print("UNMATCHED", *u, sep=" | ")
 
 

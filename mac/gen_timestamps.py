@@ -140,28 +140,39 @@ def align(sentences, asr_words, duration):
     return result, matched / len(ref)
 
 
+def timestamps_for_folder(model, folder, force=False):
+    """Write timestamps.json into one lesson folder. Returns (sentence count, match ratio), or None if skipped."""
+    out = folder / "timestamps.json"
+    mp3s = sorted(folder.glob("*.mp3"))
+    tr = folder / "transcript.txt"
+    if not mp3s or not tr.exists() or (out.exists() and not force):
+        return None
+    text = strip_header(tr.read_text(encoding="utf-8"))
+    sentences = []
+    for pi, para in enumerate(p for p in text.split("\n\n") if p.strip()):
+        for s in split_sentences(" ".join(para.split())):
+            sentences.append((pi, s))
+    words, duration = recognise(model, mp3s[0])
+    result, ratio = align(sentences, words, duration)
+    out.write_text(json.dumps({"version": 1, "sentences": result}, ensure_ascii=False, indent=1), encoding="utf-8")
+    return len(result), ratio
+
+
+def load_model():
+    return WhisperModel("small", device="cpu", compute_type="int8")
+
+
 def main():
     root = Path(sys.argv[1])
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
     force = "--force" in sys.argv
-    model = WhisperModel("small", device="cpu", compute_type="int8")
+    model = load_model()
     for d in sorted(p for p in root.iterdir() if p.is_dir()):
         if only and not d.name.startswith(only):
             continue
-        out = d / "timestamps.json"
-        mp3s = sorted(d.glob("*.mp3"))
-        tr = d / "transcript.txt"
-        if not mp3s or not tr.exists() or (out.exists() and not force):
-            continue
-        text = strip_header(tr.read_text(encoding="utf-8"))
-        sentences = []
-        for pi, para in enumerate(p for p in text.split("\n\n") if p.strip()):
-            for s in split_sentences(" ".join(para.split())):
-                sentences.append((pi, s))
-        words, duration = recognise(model, mp3s[0])
-        result, ratio = align(sentences, words, duration)
-        out.write_text(json.dumps({"version": 1, "sentences": result}, ensure_ascii=False, indent=1), encoding="utf-8")
-        print(f"{d.name}: {len(result)} sentences, matched {ratio:.0%}", flush=True)
+        done = timestamps_for_folder(model, d, force)
+        if done:
+            print(f"{d.name}: {done[0]} sentences, matched {done[1]:.0%}", flush=True)
 
 
 if __name__ == "__main__":
