@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -118,10 +119,6 @@ fun VocabListScreen(vm: VocabViewModel, onOpen: (String) -> Unit, onOpenFavorite
         lesson.code to lesson.entryList.count { marks["${lesson.code}/${it.key}"] == MarkState.FAVORITE }
     }
     val totalFavorites = favoritesByTopic.values.sum()
-    // 每个主题已经标成“已会”的词数，用来画进度
-    val masteredByTopic: Map<String, Int> = lessons.orEmpty().associate { lesson ->
-        lesson.code to lesson.entryList.count { marks["${lesson.code}/${it.key}"] == MarkState.MASTERED }
-    }
     val colors = MaterialTheme.colorScheme
     Scaffold(
         containerColor = colors.background,
@@ -160,23 +157,13 @@ fun VocabListScreen(vm: VocabViewModel, onOpen: (String) -> Unit, onOpenFavorite
             ) {
                 list.groupBy { it.unit }.forEach { (unit, topics) ->
                     item(key = "unit$unit") {
-                        val known = topics.sumOf { masteredByTopic[it.code] ?: 0 }
-                        val all = topics.sumOf { it.entryList.size }
-                        Row(
-                            Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                "Unit $unit",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.secondary,
-                            )
-                            if (known > 0) {
-                                Text("已会 $known / $all", style = MaterialTheme.typography.labelMedium, color = MarkColors.mastered())
-                            }
-                        }
+                        Text(
+                            "Unit $unit",
+                            Modifier.padding(top = 10.dp, bottom = 2.dp),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.secondary,
+                        )
                     }
                     items(topics, key = { it.code }) { topic ->
                         TopicCard(
@@ -254,6 +241,8 @@ fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBac
     var selfTest by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf<String?>(null) }
     var showImage by remember { mutableStateOf(true) }
+    // 图片区域占屏幕高度的比例，拖中间的分割条调整；每次进来都从 65% 开始
+    var imageRatio by remember { mutableStateOf(0.65f) }
     var zoomPage by remember { mutableStateOf<Int?>(null) }
     val revealed = remember { mutableStateListOf<String>() }
     val snackbar = remember { SnackbarHostState() }
@@ -330,10 +319,27 @@ fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBac
                     if (at >= 0) listState.scrollToItem(at)
                 }
                 BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
-                    val imageHeight = maxHeight * 0.65f
+                    val imageHeight = maxHeight * imageRatio
+                    val totalPx = with(androidx.compose.ui.platform.LocalDensity.current) { maxHeight.toPx() }
                     Column(Modifier.fillMaxSize()) {
                         if (showImage) {
                             PageHeader(pagerState, pages, dir, Modifier.fillMaxWidth().height(imageHeight)) { zoomPage = it }
+                            // 图片和列表之间的分割条：往上拖列表变大，往下拖图片变大
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(28.dp)
+                                    .draggable(
+                                        orientation = androidx.compose.foundation.gestures.Orientation.Vertical,
+                                        state = androidx.compose.foundation.gestures.rememberDraggableState { dy ->
+                                            imageRatio = (imageRatio + dy / totalPx).coerceIn(0.15f, 0.80f)
+                                        },
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp).height(1.dp).background(colors.outlineVariant))
+                                Box(Modifier.size(width = 44.dp, height = 5.dp).clip(CircleShape).background(colors.outline))
+                            }
                         }
                         LazyColumn(
                             state = listState,
