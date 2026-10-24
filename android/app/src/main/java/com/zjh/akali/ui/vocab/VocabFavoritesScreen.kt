@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Quiz
+import androidx.compose.material.icons.rounded.Style
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,6 +51,7 @@ fun VocabFavoritesScreen(vm: VocabViewModel, onShowPicture: (code: String, key: 
     val playing by vm.playingClip.collectAsStateWithLifecycle()
     val explaining by vm.explaining.collectAsStateWithLifecycle()
     var review by remember { mutableStateOf(false) }
+    var cards by remember { mutableStateOf(false) }
     val revealed = remember { mutableStateListOf<String>() }
     var expanded by remember { mutableStateOf<String?>(null) }
     val snackbar = remember { SnackbarHostState() }
@@ -69,10 +71,15 @@ fun VocabFavoritesScreen(vm: VocabViewModel, onShowPicture: (code: String, key: 
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
-                title = { Text(if (total > 0) "收藏 · $total 个词" else "收藏", fontWeight = FontWeight.Bold, color = colors.primary) },
+                title = { Text(if (cards) "卡片复习" else if (total > 0) "收藏 · $total 个词" else "收藏", fontWeight = FontWeight.Bold, color = colors.primary) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") } },
                 actions = {
-                    if (total > 0) {
+                    if (total > 0 || cards) {
+                        IconButton(onClick = { cards = !cards }) {
+                            Icon(Icons.Rounded.Style, "卡片复习", tint = if (cards) colors.primary else colors.onSurfaceVariant)
+                        }
+                    }
+                    if (total > 0 && !cards) {
                         IconButton(
                             onClick = {
                                 review = !review
@@ -85,7 +92,9 @@ fun VocabFavoritesScreen(vm: VocabViewModel, onShowPicture: (code: String, key: 
             )
         },
     ) { padding ->
-        if (total == 0) {
+        if (cards) {
+            FavoriteCards(vm, lessons.orEmpty(), marks, Modifier.padding(padding)) { cards = false }
+        } else if (total == 0) {
             Box(Modifier.fillMaxSize().padding(padding).padding(32.dp), contentAlignment = Alignment.Center) {
                 Text(
                     "还没有收藏的词。\n在主题页里长按一个词，选“已收藏”，它就会出现在这里。",

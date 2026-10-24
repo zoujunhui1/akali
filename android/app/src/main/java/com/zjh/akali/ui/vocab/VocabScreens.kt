@@ -347,7 +347,7 @@ fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBac
 }
 
 @Composable
-private fun rememberPageBitmap(file: File): ImageBitmap? {
+internal fun rememberPageBitmap(file: File): ImageBitmap? {
     val bitmap by produceState<ImageBitmap?>(null, file.path) {
         value = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(file.path)?.asImageBitmap() }
     }
@@ -384,7 +384,7 @@ private fun PageHeader(state: PagerState, pages: List<Int>, dir: File, modifier:
 
 /** 全屏看图：双指缩放、拖动，双击放大或还原。 */
 @Composable
-private fun ZoomDialog(file: File, onClose: () -> Unit) {
+internal fun ZoomDialog(file: File, onClose: () -> Unit) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val bmp = rememberPageBitmap(file)
         var scale by remember { mutableStateOf(1f) }
