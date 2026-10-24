@@ -49,6 +49,16 @@ class Prefs(context: Context) {
         get() = sp.getLong("syncRev", 0L)
         set(v) = sp.edit().putLong("syncRev", v).apply()
 
+    /** 词汇主题已同步到的服务器版本号 */
+    var vocabRev: Long
+        get() = sp.getLong("vocabRev", 0L)
+        set(v) = sp.edit().putLong("vocabRev", v).apply()
+
+    /** 词条标记已同步到的服务器版本号 */
+    var marksRev: Long
+        get() = sp.getLong("marksRev", 0L)
+        set(v) = sp.edit().putLong("marksRev", v).apply()
+
     var lastSyncAt: Long
         get() = sp.getLong("lastSyncAt", 0L)
         set(v) = sp.edit().putLong("lastSyncAt", v).apply()

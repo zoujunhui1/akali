@@ -4,9 +4,11 @@ import android.app.Application
 import android.content.Context
 import com.zjh.akali.data.AppDatabase
 import com.zjh.akali.data.LessonFiles
+import com.zjh.akali.data.MarkRepository
 import com.zjh.akali.data.LessonRepository
 import com.zjh.akali.data.HttpServerApi
 import com.zjh.akali.data.Prefs
+import com.zjh.akali.data.VocabRepository
 import com.zjh.akali.data.ServerApi
 import com.zjh.akali.playback.PlayerController
 
@@ -23,6 +25,8 @@ class AppContainer(context: Context) {
             null
         }
     val repository = LessonRepository(db.lessonDao(), files, serverApi)
+    val vocabRepository = VocabRepository(db.vocabDao(), files, serverApi)
+    val markRepository = MarkRepository(db.markDao(), serverApi)
     val player = PlayerController(context, prefs)
 }
 

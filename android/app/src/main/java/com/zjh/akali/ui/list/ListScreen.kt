@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
@@ -66,11 +67,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.zjh.akali.data.Lesson
 import com.zjh.akali.ui.formatSize
 import com.zjh.akali.data.SortOrder
+import com.zjh.akali.ui.ConfirmDialog
 import com.zjh.akali.ui.MainViewModel
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ListScreen(vm: MainViewModel, onOpenPlayer: () -> Unit, onOpenSettings: () -> Unit) {
+fun ListScreen(vm: MainViewModel, onOpenPlayer: () -> Unit, onOpenSettings: () -> Unit, onOpenVocab: () -> Unit) {
     val lessons by vm.lessons.collectAsStateWithLifecycle()
     val selection by vm.selection.collectAsStateWithLifecycle()
     val sort by vm.sort.collectAsStateWithLifecycle()
@@ -78,13 +80,23 @@ fun ListScreen(vm: MainViewModel, onOpenPlayer: () -> Unit, onOpenSettings: () -
     val downloading by vm.downloading.collectAsStateWithLifecycle()
 
     var sortMenu by remember { mutableStateOf(false) }
+    var confirmClear by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { vm.messages.collect { snackbar.showSnackbar(it) } }
     BackHandler(enabled = selection.isNotEmpty()) { vm.clearSelection() }
 
     val selecting = selection.isNotEmpty()
-    val current = lessons.orEmpty().firstOrNull { it.id == player.currentLessonId }
+    if (confirmClear && selecting) {
+        ConfirmDialog(
+            title = "清除音频",
+            message = "清除选中的 ${selection.size} 课的音频？文字和词表会保留，之后可以重新下载。",
+            confirmText = "清除",
+            onConfirm = vm::clearSelectedAudio,
+            onDismiss = { confirmClear = false },
+        )
+    }
+    val current =lessons.orEmpty().firstOrNull { it.id == player.currentLessonId }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -97,7 +109,7 @@ fun ListScreen(vm: MainViewModel, onOpenPlayer: () -> Unit, onOpenSettings: () -
                         IconButton(onClick = vm::clearSelection) { Icon(Icons.Rounded.Close, "取消选择") }
                     },
                     actions = {
-                        IconButton(onClick = vm::clearSelectedAudio) { Icon(Icons.Rounded.DeleteSweep, "清除音频") }
+                        IconButton(onClick = { confirmClear = true }) { Icon(Icons.Rounded.DeleteSweep, "清除音频") }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -122,6 +134,7 @@ fun ListScreen(vm: MainViewModel, onOpenPlayer: () -> Unit, onOpenSettings: () -
                                 }
                             }
                         }
+                        IconButton(onClick = onOpenVocab) { Icon(Icons.AutoMirrored.Rounded.MenuBook, "词汇") }
                         IconButton(onClick = onOpenSettings) { Icon(Icons.Rounded.Settings, "设置") }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),

@@ -65,6 +65,11 @@ class Client:
     def download_audio(self, code):
         return self._call("GET", f"/api/v1/lessons/{code}/audio", self.app)
 
+    def server_vocab(self):
+        """code -> the picture dictionary topic as the server has it (entries, pages, bundle info)."""
+        out = json.loads(self._call("GET", "/api/v1/vocab", self.app))
+        return {l["code"]: l for l in out["lessons"]}
+
     # ---- write (admin token) ----
     def put_lesson(self, code, title, source_url, transcript):
         self._put_json(f"/admin/lessons/{code}", {"title": title, "source_url": source_url, "transcript": transcript})
@@ -77,6 +82,15 @@ class Client:
 
     def put_vocab(self, code, doc):
         self._put_json(f"/admin/lessons/{code}/vocab", doc)
+
+    def put_vocab_lesson(self, code, doc):
+        self._put_json(f"/admin/vocab/{code}", {k: doc[k] for k in ("title", "pages", "entries")})
+
+    def put_vocab_bundle(self, code, data):
+        self._call("PUT", f"/admin/vocab/{code}/bundle", self.admin, data, "application/zip")
+
+    def delete_vocab(self, code):
+        self._call("DELETE", f"/admin/vocab/{code}", self.admin)
 
     def delete(self, code):
         self._call("DELETE", f"/admin/lessons/{code}", self.admin)

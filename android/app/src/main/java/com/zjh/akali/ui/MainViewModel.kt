@@ -33,6 +33,7 @@ sealed interface SyncUiState {
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val container = (app as AkaliApp).container
     private val repo = container.repository
+    private val vocabRepo = container.vocabRepository
     private val prefs = container.prefs
     val player = container.player
 
@@ -81,12 +82,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val r = repo.sync(prefs.syncRev) { ids -> player.release(ids.toSet()) }
                 prefs.syncRev = r.rev
+                val v = vocabRepo.sync(prefs.vocabRev)
+                prefs.vocabRev = v.rev
+                prefs.marksRev = container.markRepository.sync(prefs.marksRev)
                 prefs.lastSyncAt = System.currentTimeMillis()
                 _lastSyncAt.value = prefs.lastSyncAt
                 refreshStorage()
-                val changed = r.added + r.updated + r.removed
+                val changed = r.added + r.updated + r.removed + v.added + v.updated + v.removed
                 val text = if (changed == 0) "已是最新" else "已同步：新增 ${r.added} 课，更新 ${r.updated} 课" +
-                    (if (r.removed > 0) "，移除 ${r.removed} 课" else "")
+                    (if (r.removed > 0) "，移除 ${r.removed} 课" else "") +
+                    (if (v.added + v.updated + v.removed > 0) "；词汇主题 ${v.added + v.updated + v.removed} 个有变化" else "")
                 _sync.value = SyncUiState.Done(text)
                 if (!auto || changed > 0) say(text)
             } catch (e: CancellationException) {

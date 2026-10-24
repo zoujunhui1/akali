@@ -18,6 +18,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/zoujunhui1/akali/server/internal/llm"
 	"github.com/zoujunhui1/akali/server/internal/store"
 )
 
@@ -27,11 +28,14 @@ type Config struct {
 	AppToken   string
 	AdminToken string
 	AudioDir   string
+	AI         *llm.Client // nil = no AI key configured
+	AIPerDay   int         // 0 = 200
 }
 
 type Server struct {
 	cfg   Config
 	store *store.Store
+	limit *limiter
 }
 
 func New(cfg Config, s *store.Store) (*gin.Engine, error) {
@@ -44,7 +48,10 @@ func New(cfg Config, s *store.Store) (*gin.Engine, error) {
 	if err := os.MkdirAll(cfg.AudioDir, 0o755); err != nil {
 		return nil, err
 	}
-	srv := &Server{cfg: cfg, store: s}
+	if cfg.AIPerDay == 0 {
+		cfg.AIPerDay = 200
+	}
+	srv := &Server{cfg: cfg, store: s, limit: &limiter{max: cfg.AIPerDay}}
 
 	r := gin.New()
 	r.Use(gin.Recovery(), gin.Logger())
@@ -61,6 +68,9 @@ func New(cfg Config, s *store.Store) (*gin.Engine, error) {
 	admin.PUT("/lessons/:code/timestamps", srv.putTimestamps)
 	admin.PUT("/lessons/:code/vocab", srv.putVocab)
 	admin.DELETE("/lessons/:code", srv.remove)
+	srv.vocabRoutes(app, admin)
+	srv.aiRoutes(app)
+	srv.marksRoutes(app)
 	return r, nil
 }
 

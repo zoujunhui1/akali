@@ -24,6 +24,11 @@ const (
 // newServer needs a MySQL database (AKALI_TEST_DSN); the test is skipped without one.
 func newServer(t *testing.T) (*gin.Engine, string) {
 	t.Helper()
+	return newServerWith(t, func(*Config) {})
+}
+
+func newServerWith(t *testing.T, tweak func(*Config)) (*gin.Engine, string) {
+	t.Helper()
 	dsn := os.Getenv("AKALI_TEST_DSN")
 	if dsn == "" {
 		t.Skip("AKALI_TEST_DSN not set")
@@ -38,7 +43,9 @@ func newServer(t *testing.T) (*gin.Engine, string) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	r, err := New(Config{AppToken: appTok, AdminToken: adminTok, AudioDir: dir}, st)
+	cfg := Config{AppToken: appTok, AdminToken: adminTok, AudioDir: dir}
+	tweak(&cfg)
+	r, err := New(cfg, st)
 	if err != nil {
 		t.Fatal(err)
 	}

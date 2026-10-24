@@ -3,13 +3,19 @@ package com.zjh.akali
 import android.content.Context
 import androidx.test.platform.app.InstrumentationRegistry
 import com.zjh.akali.data.AppDatabase
+import com.zjh.akali.data.ChatMessage
+import com.zjh.akali.data.EntryNote
 import com.zjh.akali.data.LessonFiles
 import com.zjh.akali.data.LessonRepository
+import com.zjh.akali.data.MarksPayload
 import com.zjh.akali.data.RemoteLesson
+import com.zjh.akali.data.RemoteMark
+import com.zjh.akali.data.RemoteVocab
 import com.zjh.akali.data.ServerApi
 import com.zjh.akali.data.SyncPayload
 import com.zjh.akali.data.Timestamps
 import com.zjh.akali.data.VocabMarks
+import com.zjh.akali.data.VocabPayload
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -23,7 +29,7 @@ import org.junit.Test
 import java.io.File
 import java.io.IOException
 
-private class FakeServer : ServerApi {
+internal class FakeServer : ServerApi {
     var lessons = listOf<RemoteLesson>()
     var rev = 1L
     var failDownload = false
@@ -39,6 +45,52 @@ private class FakeServer : ServerApi {
         if (failDownload) throw IOException("下载的音频校验不通过，请重试")
         dest.parentFile?.mkdirs()
         dest.writeBytes(audio)
+    }
+
+    var vocab = listOf<RemoteVocab>()
+    var vocabRev = 1L
+    var bundle = ByteArray(0)
+    val askedVocabSince = mutableListOf<Long>()
+
+    override suspend fun vocabChanges(since: Long): VocabPayload {
+        askedVocabSince += since
+        return VocabPayload(vocabRev, vocab)
+    }
+
+    override suspend fun downloadVocabBundle(code: String, sha256: String?, dest: File, onProgress: (Float) -> Unit) {
+        dest.parentFile?.mkdirs()
+        dest.writeBytes(bundle)
+    }
+
+    val serverMarks = linkedMapOf<Pair<String, String>, String>()
+    var marksRev = 1L
+    var failMarks = false
+    val pushed = mutableListOf<List<RemoteMark>>()
+
+    override suspend fun putMarks(marks: List<RemoteMark>): Long {
+        if (failMarks) throw IOException("offline")
+        pushed += marks
+        marks.forEach { serverMarks[it.code to it.key] = it.state }
+        return ++marksRev
+    }
+
+    override suspend fun marksChanges(since: Long): MarksPayload {
+        if (failMarks) throw IOException("offline")
+        return MarksPayload(marksRev, serverMarks.map { RemoteMark(it.key.first, it.key.second, it.value) })
+    }
+
+    val explained = mutableListOf<String>()
+    var chatReply = "Nice!"
+    var chatSeen = listOf<ChatMessage>()
+
+    override suspend fun explainEntry(code: String, key: String, force: Boolean): EntryNote {
+        explained += "$code/$key/$force"
+        return EntryNote("红色", "the color of blood", "She wears a red dress.", "她穿着红裙子。")
+    }
+
+    override suspend fun chat(code: String, messages: List<ChatMessage>): String {
+        chatSeen = messages
+        return chatReply
     }
 }
 

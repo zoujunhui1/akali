@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 )
 
 var ErrNotFound = errors.New("lesson not found")
@@ -97,6 +97,14 @@ func Open(dsn string) (*Store, error) {
 			return nil, fmt.Errorf("migrate: %w", err)
 		}
 	}
+	for _, m := range vocabAlters {
+		if _, err := db.Exec(m); err != nil {
+			var me *mysql.MySQLError
+			if !errors.As(err, &me) || me.Number != 1060 { // 1060 = column already there
+				return nil, fmt.Errorf("migrate: %w", err)
+			}
+		}
+	}
 	return &Store{db: db}, nil
 }
 
@@ -105,6 +113,12 @@ func (s *Store) Close() error { return s.db.Close() }
 // Reset empties all data. Tests only.
 func (s *Store) Reset(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, `DELETE FROM lessons`); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM vocab_lessons`); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM vocab_marks`); err != nil {
 		return err
 	}
 	_, err := s.db.ExecContext(ctx, `UPDATE meta SET rev = 0`)

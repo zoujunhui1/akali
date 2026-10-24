@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/zoujunhui1/akali/server/internal/api"
+	"github.com/zoujunhui1/akali/server/internal/llm"
 	"github.com/zoujunhui1/akali/server/internal/store"
 )
 
@@ -29,6 +30,7 @@ func main() {
 		AppToken:   env("AKALI_APP_TOKEN"),
 		AdminToken: env("AKALI_ADMIN_TOKEN"),
 		AudioDir:   env("AKALI_AUDIO_DIR"),
+		AI:         llm.New(os.Getenv("AKALI_AI_KEY"), os.Getenv("AKALI_AI_URL"), os.Getenv("AKALI_AI_MODEL")),
 	}, st)
 	if err != nil {
 		log.Fatal(err)

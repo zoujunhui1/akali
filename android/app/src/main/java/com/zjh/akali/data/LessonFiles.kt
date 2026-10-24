@@ -18,5 +18,13 @@ class LessonFiles(private val root: File) {
         dir(id).deleteRecursively()
     }
 
-    fun totalBytes(): Long = lessonsDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+    /** 词汇主题的文件：<root>/vocab/<code>/（page-N.jpg、audio/…） */
+    fun vocabDir(code: String) = File(File(root, "vocab"), code)
+
+    fun deleteVocab(code: String) {
+        vocabDir(code).deleteRecursively()
+    }
+
+    fun totalBytes(): Long =
+        listOf(lessonsDir, File(root, "vocab")).sumOf { dir -> dir.walkTopDown().filter { it.isFile }.sumOf { it.length() } }
 }
