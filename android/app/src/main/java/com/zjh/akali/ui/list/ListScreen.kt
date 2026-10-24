@@ -212,11 +212,19 @@ private fun LessonCard(
     onDownload: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     Card(
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = if (selected) colors.primaryContainer else colors.surface),
+        border = com.zjh.akali.ui.theme.cardBorder(),
         modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    onLongClick()
+                },
+            ),
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(

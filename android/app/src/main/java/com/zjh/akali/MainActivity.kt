@@ -12,6 +12,13 @@ import androidx.activity.viewModels
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.Composable
 import androidx.core.content.ContextCompat
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -92,6 +99,8 @@ private fun AkaliRoot(vm: MainViewModel) {
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (onTab) {
+                Column {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                     TABS.forEach { tab ->
                         NavigationBarItem(
@@ -108,10 +117,33 @@ private fun AkaliRoot(vm: MainViewModel) {
                         )
                     }
                 }
+                }
             }
         },
     ) { inner ->
-        NavHost(navController = nav, startDestination = start, modifier = Modifier.padding(inner).consumeWindowInsets(inner)) {
+        // 页签之间轻轻淡入淡出；进入二级页面从右边滑入，返回时反向
+        fun tabSwitch(from: String?, to: String?) = TABS.any { it.route == from } && TABS.any { it.route == to }
+        NavHost(
+            navController = nav,
+            startDestination = start,
+            modifier = Modifier.padding(inner).consumeWindowInsets(inner),
+            enterTransition = {
+                if (tabSwitch(initialState.destination.route, targetState.destination.route)) fadeIn(tween(180))
+                else slideInHorizontally(tween(260)) { it / 6 } + fadeIn(tween(260))
+            },
+            exitTransition = {
+                if (tabSwitch(initialState.destination.route, targetState.destination.route)) fadeOut(tween(120))
+                else slideOutHorizontally(tween(260)) { -it / 8 } + fadeOut(tween(200))
+            },
+            popEnterTransition = {
+                if (tabSwitch(initialState.destination.route, targetState.destination.route)) fadeIn(tween(180))
+                else slideInHorizontally(tween(260)) { -it / 8 } + fadeIn(tween(260))
+            },
+            popExitTransition = {
+                if (tabSwitch(initialState.destination.route, targetState.destination.route)) fadeOut(tween(120))
+                else slideOutHorizontally(tween(260)) { it / 6 } + fadeOut(tween(200))
+            },
+        ) {
             composable("list") { ListScreen(vm = vm, onOpenPlayer = { nav.navigate("player") }) }
             composable("player") { PlayerScreen(vm, onBack = { nav.popBackStack() }) }
             composable("settings") { SettingsScreen(vm) }

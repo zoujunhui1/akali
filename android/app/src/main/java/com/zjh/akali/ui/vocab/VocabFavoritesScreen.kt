@@ -130,6 +130,7 @@ fun VocabFavoritesScreen(vm: VocabViewModel, onShowPicture: (code: String, key: 
                         val id = "${lesson.code}/${e.key}"
                         val hidden = review && id !in revealed
                         EntryRow(
+                            modifier = Modifier.animateItem(),
                             entry = e,
                             hidden = hidden,
                             playing = playing == "${lesson.code}/${e.audio}",

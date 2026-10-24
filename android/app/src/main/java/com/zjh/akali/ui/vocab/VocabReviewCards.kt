@@ -1,5 +1,11 @@
 package com.zjh.akali.ui.vocab
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,6 +45,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.zjh.akali.data.MarkState
 import com.zjh.akali.data.VocabLesson
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import java.io.File
 
 /**
@@ -52,13 +61,25 @@ internal fun FavoriteCards(vm: VocabViewModel, lessons: List<VocabLesson>, marks
     // 每一轮开始时洗一次牌；中途标成已会的词不会让牌堆变化
     val deck = remember(round) { favorites.filter { it.first.downloaded }.map { "${it.first.code}/${it.second.key}" }.shuffled() }
     var index by remember(round) { mutableStateOf(0) }
-    var shown by remember(round, index) { mutableStateOf(false) }
     var known by remember(round) { mutableStateOf(0) }
     var zoomPage by remember { mutableStateOf<Int?>(null) }
     val colors = MaterialTheme.colorScheme
 
-    Column(modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        val current = deck.getOrNull(index)
+    val haptic = LocalHapticFeedback.current
+
+    // 换下一张时，旧卡片往左滑出、新卡片从右滑入
+    AnimatedContent(
+        targetState = index,
+        modifier = modifier.fillMaxSize().padding(horizontal = 16.dp),
+        transitionSpec = {
+            (slideInHorizontally(tween(260)) { it / 3 } + fadeIn(tween(260))) togetherWith
+                (slideOutHorizontally(tween(260)) { -it / 3 } + fadeOut(tween(160)))
+        },
+        label = "card",
+    ) { idx ->
+    var shown by remember(round, idx) { mutableStateOf(false) }
+    Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+        val current = deck.getOrNull(idx)
         val lesson = current?.let { id -> lessons.firstOrNull { it.code == id.substringBefore('/') } }
         val entry = current?.let { id -> lesson?.entryList?.firstOrNull { it.key == id.substringAfter('/') } }
         if (lesson == null || entry == null) {
@@ -80,7 +101,7 @@ internal fun FavoriteCards(vm: VocabViewModel, lessons: List<VocabLesson>, marks
             Spacer(Modifier.weight(1f))
         } else {
             Text(
-                "${index + 1} / ${deck.size} · ${lesson.title}",
+                "${idx + 1} / ${deck.size} · ${lesson.title}",
                 Modifier.padding(vertical = 6.dp),
                 style = MaterialTheme.typography.labelLarge,
                 color = colors.onSurfaceVariant,
@@ -119,6 +140,7 @@ internal fun FavoriteCards(vm: VocabViewModel, lessons: List<VocabLesson>, marks
                     OutlinedButton(onClick = { index++ }, Modifier.weight(1f)) { Text("还不会") }
                     Button(
                         onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                             vm.setMark(lesson.code, entry.key, MarkState.MASTERED)
                             known++
                             index++
@@ -134,5 +156,6 @@ internal fun FavoriteCards(vm: VocabViewModel, lessons: List<VocabLesson>, marks
             Spacer(Modifier.height(16.dp))
             zoomPage?.let { ZoomDialog(File(vm.dir(lesson.code), "page-$it.jpg")) { zoomPage = null } }
         }
+    }
     }
 }

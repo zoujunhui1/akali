@@ -1,13 +1,16 @@
 package com.zjh.akali.ui.theme
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 // 阿卡丽经典原皮：近黑的紫底、血红主色、紫色辅助色
@@ -62,11 +65,25 @@ private val AkaliShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp),
 )
 
+private val AkaliTypography = Typography().let { t ->
+    t.copy(
+        headlineSmall = t.headlineSmall.copy(fontWeight = FontWeight.Bold),
+        titleLarge = t.titleLarge.copy(fontWeight = FontWeight.Bold),
+        titleMedium = t.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+        labelLarge = t.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+    )
+}
+
+/** 卡片的细边线：浅色下让白卡片和浅紫背景分得清，深色下几乎看不见。 */
+@Composable
+fun cardBorder(): BorderStroke = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+
 @Composable
 fun AkaliTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = if (dark) DarkColors else LightColors,
         shapes = AkaliShapes,
+        typography = AkaliTypography,
         content = content,
     )
 }

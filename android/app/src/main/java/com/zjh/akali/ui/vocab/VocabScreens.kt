@@ -20,6 +20,12 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.RadioButton
 import androidx.compose.ui.graphics.Color
 import com.zjh.akali.data.MarkState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -112,6 +118,10 @@ fun VocabListScreen(vm: VocabViewModel, onOpen: (String) -> Unit, onOpenFavorite
         lesson.code to lesson.entryList.count { marks["${lesson.code}/${it.key}"] == MarkState.FAVORITE }
     }
     val totalFavorites = favoritesByTopic.values.sum()
+    // 每个主题已经标成“已会”的词数，用来画进度
+    val masteredByTopic: Map<String, Int> = lessons.orEmpty().associate { lesson ->
+        lesson.code to lesson.entryList.count { marks["${lesson.code}/${it.key}"] == MarkState.MASTERED }
+    }
     val colors = MaterialTheme.colorScheme
     Scaffold(
         containerColor = colors.background,
@@ -150,16 +160,30 @@ fun VocabListScreen(vm: VocabViewModel, onOpen: (String) -> Unit, onOpenFavorite
             ) {
                 list.groupBy { it.unit }.forEach { (unit, topics) ->
                     item(key = "unit$unit") {
-                        Text(
-                            "Unit $unit",
-                            Modifier.padding(top = 10.dp, bottom = 2.dp),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.secondary,
-                        )
+                        val known = topics.sumOf { masteredByTopic[it.code] ?: 0 }
+                        val all = topics.sumOf { it.entryList.size }
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "Unit $unit",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.secondary,
+                            )
+                            if (known > 0) {
+                                Text("已会 $known / $all", style = MaterialTheme.typography.labelMedium, color = MarkColors.mastered())
+                            }
+                        }
                     }
                     items(topics, key = { it.code }) { topic ->
-                        TopicCard(topic, favorites = favoritesByTopic[topic.code] ?: 0) { onOpen(topic.code) }
+                        TopicCard(
+                            topic,
+                            favorites = favoritesByTopic[topic.code] ?: 0,
+                            modifier = Modifier.animateItem(),
+                        ) { onOpen(topic.code) }
                     }
                 }
             }
@@ -168,12 +192,13 @@ fun VocabListScreen(vm: VocabViewModel, onOpen: (String) -> Unit, onOpenFavorite
 }
 
 @Composable
-private fun TopicCard(topic: VocabLesson, favorites: Int, onClick: () -> Unit) {
+private fun TopicCard(topic: VocabLesson, favorites: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Card(
         shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = colors.surface),
-        modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable(onClick = onClick),
+        border = com.zjh.akali.ui.theme.cardBorder(),
+        modifier = modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).clickable(onClick = onClick),
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.clip(MaterialTheme.shapes.small).background(colors.primaryContainer).padding(horizontal = 10.dp, vertical = 8.dp)) {
@@ -319,6 +344,7 @@ fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBac
                             items(ordered, key = { it.key }) { e ->
                                 val hidden = selfTest && e.key !in revealed
                                 EntryRow(
+                                    modifier = Modifier.animateItem(),
                                     entry = e,
                                     hidden = hidden,
                                     playing = playing == "$code/${e.audio}",
@@ -456,15 +482,17 @@ internal fun EntryRow(
     onMark: (MarkState) -> Unit,
     onAi: () -> Unit,
     onShowPicture: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
     var menu by remember { mutableStateOf(false) }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val textColor = if (mark == MarkState.MASTERED) MarkColors.mastered() else colors.onSurface
     Card(
         shape = MaterialTheme.shapes.small,
         colors = CardDefaults.cardColors(containerColor = if (playing) colors.primaryContainer else colors.surface),
-        border = if (highlight) BorderStroke(2.dp, colors.primary) else null,
-        modifier = Modifier.fillMaxWidth(),
+        border = if (highlight) BorderStroke(2.dp, colors.primary) else com.zjh.akali.ui.theme.cardBorder(),
+        modifier = modifier.fillMaxWidth(),
     ) {
         Box {
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -481,7 +509,13 @@ internal fun EntryRow(
             }
         }
         Row(
-            Modifier.combinedClickable(onClick = onPlay, onLongClick = { menu = true })
+            Modifier.combinedClickable(
+                onClick = onPlay,
+                onLongClick = {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    menu = true
+                },
+            )
                 .padding(start = 14.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -519,7 +553,7 @@ internal fun EntryRow(
                 tint = if (playing) colors.primary else colors.onSurfaceVariant,
             )
         }
-        if (expanded) {
+        AnimatedVisibility(expanded, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             Column(Modifier.fillMaxWidth().padding(start = 44.dp, end = 14.dp, bottom = 12.dp)) {
                 when {
                     note != null -> {
