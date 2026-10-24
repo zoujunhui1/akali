@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import com.zjh.akali.data.MarkState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -31,6 +32,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -212,6 +227,8 @@ fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBac
     val listState = rememberLazyListState()
     var confirmClear by remember { mutableStateOf(false) }
     var selfTest by remember { mutableStateOf(false) }
+    var showImage by remember { mutableStateOf(true) }
+    var zoomPage by remember { mutableStateOf<Int?>(null) }
     val revealed = remember { mutableStateListOf<String>() }
     var expanded by remember { mutableStateOf<String?>(null) }
     val snackbar = remember { SnackbarHostState() }
@@ -242,6 +259,9 @@ fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBac
                                 revealed.clear()
                             },
                         ) { Icon(Icons.Rounded.Quiz, "看图自测", tint = if (selfTest) colors.primary else colors.onSurfaceVariant) }
+                        IconButton(onClick = { showImage = !showImage }) {
+                            Icon(Icons.Rounded.Image, "显示或收起图片", tint = if (showImage) colors.primary else colors.onSurfaceVariant)
+                        }
                         IconButton(onClick = onChat) { Icon(Icons.AutoMirrored.Rounded.Chat, "和 AI 聊") }
                         IconButton(onClick = { confirmClear = true }) { Icon(Icons.Rounded.DeleteSweep, "清除图片和发音") }
                     }
@@ -270,72 +290,139 @@ fun VocabLessonScreen(vm: VocabViewModel, code: String, focusKey: String?, onBac
             }
             else -> {
                 val dir = vm.dir(code)
-                val entries = l.entryList
+                val pages = l.pageList
                 val notes = l.noteMap
-                // 从收藏页点“看图”过来时，滚到这个词的位置（每一页一张图加这一页的词条）
+                val ordered = pages.flatMap { page -> l.entryList.filter { it.page == page } }
+                val pagerState = rememberPagerState { pages.size }
+                // 词条列表滑到哪一页，上面的图就换成哪一页；图本身不跟着列表滚动
+                val visiblePage by remember { derivedStateOf { ordered.getOrNull(listState.firstVisibleItemIndex)?.page } }
+                LaunchedEffect(visiblePage) {
+                    val at = pages.indexOf(visiblePage)
+                    if (at >= 0 && at != pagerState.currentPage) pagerState.animateScrollToPage(at)
+                }
+                // 从收藏页点“看图”过来时，滚到这个词的位置
                 LaunchedEffect(focusKey) {
-                    if (focusKey == null) return@LaunchedEffect
-                    var index = 0
-                    for (page in l.pageList) {
-                        index++ // 这一页的图
-                        val inPage = entries.filter { it.page == page }
-                        val at = inPage.indexOfFirst { it.key == focusKey }
-                        if (at >= 0) {
-                            listState.scrollToItem(index + at)
-                            return@LaunchedEffect
-                        }
-                        index += inPage.size
-                    }
+                    val at = ordered.indexOfFirst { it.key == focusKey }
+                    if (at >= 0) listState.scrollToItem(at)
                 }
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize().padding(padding),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    l.pageList.forEach { page ->
-                        item(key = "page$page") { PageImage(File(dir, "page-$page.jpg")) }
-                        items(entries.filter { it.page == page }, key = { it.key }) { e ->
-                            val hidden = selfTest && e.key !in revealed
-                            EntryRow(
-                                entry = e,
-                                hidden = hidden,
-                                playing = playing == "$code/${e.audio}",
-                                expanded = expanded == e.key && !hidden,
-                                note = notes[e.key],
-                                generating = "$code/${e.key}" in explaining,
-                                mark = marks["$code/${e.key}"] ?: MarkState.NONE,
-                                highlight = e.key == focusKey,
-                                onPlay = {
-                                    if (hidden) revealed.add(e.key)
-                                    vm.playClip(code, e.audio)
-                                },
-                                onToggle = { expanded = if (expanded == e.key) null else e.key },
-                                onGenerate = { force -> vm.explain(code, e.key, force) },
-                                onMark = { vm.setMark(code, e.key, it) },
-                            )
+                BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
+                    val imageHeight = maxHeight * 0.65f
+                    Column(Modifier.fillMaxSize()) {
+                        if (showImage) {
+                            PageHeader(pagerState, pages, dir, Modifier.fillMaxWidth().height(imageHeight)) { zoomPage = it }
+                        }
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 32.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            items(ordered, key = { it.key }) { e ->
+                                val hidden = selfTest && e.key !in revealed
+                                EntryRow(
+                                    entry = e,
+                                    hidden = hidden,
+                                    playing = playing == "$code/${e.audio}",
+                                    expanded = expanded == e.key && !hidden,
+                                    note = notes[e.key],
+                                    generating = "$code/${e.key}" in explaining,
+                                    mark = marks["$code/${e.key}"] ?: MarkState.NONE,
+                                    highlight = e.key == focusKey,
+                                    onPlay = {
+                                        if (hidden) revealed.add(e.key)
+                                        vm.playClip(code, e.audio)
+                                    },
+                                    onToggle = { expanded = if (expanded == e.key) null else e.key },
+                                    onGenerate = { force -> vm.explain(code, e.key, force) },
+                                    onMark = { vm.setMark(code, e.key, it) },
+                                )
+                            }
                         }
                     }
                 }
+                zoomPage?.let { ZoomDialog(File(dir, "page-$it.jpg")) { zoomPage = null } }
             }
         }
     }
 }
 
 @Composable
-private fun PageImage(file: File) {
+private fun rememberPageBitmap(file: File): ImageBitmap? {
     val bitmap by produceState<ImageBitmap?>(null, file.path) {
         value = withContext(Dispatchers.IO) { BitmapFactory.decodeFile(file.path)?.asImageBitmap() }
     }
-    val bmp = bitmap
-    if (bmp != null) {
-        Image(
-            bmp, null,
-            Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surface),
-            contentScale = ContentScale.FillWidth,
-        )
-    } else {
-        Box(Modifier.fillMaxWidth().height(160.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp)) }
+    return bitmap
+}
+
+/** 固定在列表上方的页面图；多页的主题可以左右滑动换页，点一下全屏放大。 */
+@Composable
+private fun PageHeader(state: PagerState, pages: List<Int>, dir: File, modifier: Modifier, onZoom: (Int) -> Unit) {
+    Box(modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+        HorizontalPager(state, Modifier.fillMaxSize(), key = { pages[it] }) { i ->
+            val bmp = rememberPageBitmap(File(dir, "page-${pages[i]}.jpg"))
+            Box(
+                Modifier.fillMaxSize().clip(MaterialTheme.shapes.medium).background(MaterialTheme.colorScheme.surface).clickable { onZoom(pages[i]) },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (bmp != null) {
+                    Image(bmp, "点击放大", Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+                } else {
+                    CircularProgressIndicator(Modifier.size(24.dp))
+                }
+            }
+        }
+        if (pages.size > 1) {
+            Text(
+                "${state.currentPage + 1}/${pages.size}",
+                Modifier.align(Alignment.TopEnd).padding(8.dp).background(Color(0x99000000), MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 2.dp),
+                color = Color.White,
+                style = MaterialTheme.typography.labelMedium,
+            )
+        }
+    }
+}
+
+/** 全屏看图：双指缩放、拖动，双击放大或还原。 */
+@Composable
+private fun ZoomDialog(file: File, onClose: () -> Unit) {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        val bmp = rememberPageBitmap(file)
+        var scale by remember { mutableStateOf(1f) }
+        var offset by remember { mutableStateOf(Offset.Zero) }
+        var size by remember { mutableStateOf(IntSize.Zero) }
+        fun limit(o: Offset, s: Float): Offset {
+            val maxX = size.width * (s - 1f) / 2f
+            val maxY = size.height * (s - 1f) / 2f
+            return Offset(o.x.coerceIn(-maxX, maxX), o.y.coerceIn(-maxY, maxY))
+        }
+        Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+            if (bmp != null) {
+                Image(
+                    bmp, null,
+                    Modifier
+                        .fillMaxSize()
+                        .onSizeChanged { size = it }
+                        .pointerInput(Unit) {
+                            detectTapGestures(onDoubleTap = {
+                                if (scale > 1f) { scale = 1f; offset = Offset.Zero } else scale = 2.5f
+                            })
+                        }
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                scale = (scale * zoom).coerceIn(1f, 6f)
+                                offset = limit(offset + pan, scale)
+                            }
+                        }
+                        .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y),
+                    contentScale = ContentScale.Fit,
+                )
+            } else {
+                CircularProgressIndicator()
+            }
+            IconButton(onClick = onClose, Modifier.align(Alignment.TopEnd).padding(16.dp)) {
+                Icon(Icons.Rounded.Close, "关闭", tint = Color.White)
+            }
+        }
     }
 }
 

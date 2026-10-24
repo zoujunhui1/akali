@@ -52,7 +52,7 @@ def units():
 def gaps(entries):
     """Labels missing inside the run of numbers and letters of one lesson. A run may start above 1
     (numbering can continue from the previous topic), so only holes between its ends count."""
-    nums = sorted(int(e["label"]) for e in entries if e["label"].isdigit())
+    nums = sorted(int(e["label"]) for e in entries if e["label"].isdigit() and len(e["label"]) <= 2)
     letters = sorted(e["label"] for e in entries if e["label"].isalpha())
     missing = [str(n) for n in range(nums[0], nums[-1] + 1) if n not in nums] if nums else []
     if letters:
