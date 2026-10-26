@@ -51,6 +51,7 @@ func New(cfg Config, a *auth.Service, j Jobs) (*gin.Engine, error) {
 	api.GET("/auth/me", srv.requireSession(), srv.me)
 	srv.jobRoutes(api.Group("", srv.requireSession()))
 	if cfg.Articles != nil {
+		api.GET("/status", srv.requireSession(), srv.status)
 		srv.articleRoutes(api.Group("", srv.requireSession()))
 	}
 	if cfg.Oxford != nil {

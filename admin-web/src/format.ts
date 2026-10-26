@@ -36,3 +36,14 @@ export function lessonSync(row: Pick<LessonRow, "local" | "server">): "unknown" 
   const same = s.audio === row.local.audio && s.timestamps === row.local.timestamps && (s.vocab ?? 0) === (row.local.vocab ?? 0);
   return same ? "synced" : "differs";
 }
+
+// 1536 -> "1.5 KB", 187712952 -> "179.0 MB"
+export function bytes(n: number): string {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i++;
+  }
+  return `${i === 0 ? n : n.toFixed(1)} ${units[i]}`;
+}

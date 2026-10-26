@@ -50,3 +50,21 @@ func TestErrorStatusIsReported(t *testing.T) {
 		t.Fatal("want an error")
 	}
 }
+
+func TestStatsUsesAdminTokenAndReturnsTheServersJSON(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		if r.URL.Path != "/admin/stats" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Write([]byte(`{"lessons":71}`))
+	}))
+	defer srv.Close()
+	c := &Client{Server: srv.URL, AdminToken: "adm-t", AppToken: "app-t"}
+	data, err := c.Stats(context.Background())
+	if err != nil || string(data) != `{"lessons":71}` || gotAuth != "Bearer adm-t" {
+		t.Fatalf("%s %v %s", data, err, gotAuth)
+	}
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clock, duration, isActive, lessonSync, statusText } from "./format";
+import { bytes, clock, duration, isActive, lessonSync, statusText } from "./format";
 
 describe("statusText", () => {
   it("names every status in Chinese", () => {
@@ -48,5 +48,14 @@ describe("lessonSync", () => {
   });
   it("treats no vocab file and an empty one as the same", () => {
     expect(lessonSync({ local: { ...local, vocab: null }, server: { present: true, audio: true, timestamps: 10, vocab: null } })).toBe("synced");
+  });
+});
+
+describe("bytes", () => {
+  it("picks a readable unit", () => {
+    expect(bytes(0)).toBe("0 B");
+    expect(bytes(1536)).toBe("1.5 KB");
+    expect(bytes(187712952)).toBe("179.0 MB");
+    expect(bytes(100864245760)).toBe("93.9 GB");
   });
 });

@@ -26,6 +26,7 @@ type Upstream interface {
 	Configured() bool
 	Articles(ctx context.Context) ([]akali.Article, error)
 	DeleteArticle(ctx context.Context, code string) error
+	Stats(ctx context.Context) (json.RawMessage, error)
 }
 
 // Articles is the setup for the article import pages. The cleaning and uploading is done by the Python

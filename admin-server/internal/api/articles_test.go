@@ -37,6 +37,12 @@ func (f *fakeUpstream) Articles(context.Context) ([]akali.Article, error) {
 	}
 	return []akali.Article{{Code: "R0001", Title: "Made Up", WordCount: 3}}, nil
 }
+func (f *fakeUpstream) Stats(context.Context) (json.RawMessage, error) {
+	if f.fail {
+		return nil, errors.New("down")
+	}
+	return json.RawMessage(`{"lessons":71}`), nil
+}
 func (f *fakeUpstream) DeleteArticle(_ context.Context, code string) error {
 	f.deleted = append(f.deleted, code)
 	return nil
@@ -232,5 +238,46 @@ func TestUploadNeedsAnExistingDraft(t *testing.T) {
 	e, c := newArticleServer(t)
 	if w := do(e.r, "POST", "/api/articles/upload", `{"draft":999}`, c, true); w.Code != 404 {
 		t.Fatalf("missing draft = %d", w.Code)
+	}
+}
+
+func TestStatusReportsTheOtherServerOrThatItIsDown(t *testing.T) {
+	e, c := newArticleServer(t)
+	if w := do(e.r, "GET", "/api/status", "", nil, false); w.Code != 401 {
+		t.Fatalf("status without login = %d", w.Code)
+	}
+	var out struct {
+		Online    bool
+		LatencyMs *int64 `json:"latency_ms"`
+		Server    struct{ Lessons int }
+		Error     string
+		Disk      int64 `json:"local_disk_free_bytes"`
+	}
+	get := func() {
+		out = struct {
+			Online    bool
+			LatencyMs *int64 `json:"latency_ms"`
+			Server    struct{ Lessons int }
+			Error     string
+			Disk      int64 `json:"local_disk_free_bytes"`
+		}{}
+		w := do(e.r, "GET", "/api/status", "", c, false)
+		if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &out) != nil {
+			t.Fatalf("%d %s", w.Code, w.Body)
+		}
+	}
+	get()
+	if !out.Online || out.Server.Lessons != 71 || out.LatencyMs == nil || out.Disk <= 0 {
+		t.Fatalf("online: %+v", out)
+	}
+	e.up.fail = true
+	get()
+	if out.Online || out.Error == "" {
+		t.Fatalf("down: %+v", out)
+	}
+	e.up.fail, e.up.configured = false, false
+	get()
+	if out.Online || !strings.Contains(out.Error, "配置") {
+		t.Fatalf("not configured: %+v", out)
 	}
 }

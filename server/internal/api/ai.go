@@ -23,10 +23,12 @@ type limiter struct {
 	max   int
 }
 
+func todayUTC() string { return time.Now().UTC().Format("2006-01-02") }
+
 func (l *limiter) allow() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	today := time.Now().UTC().Format("2006-01-02")
+	today := todayUTC()
 	if l.day != today {
 		l.day, l.count = today, 0
 	}

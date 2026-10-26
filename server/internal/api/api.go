@@ -68,6 +68,7 @@ func New(cfg Config, s *store.Store) (*gin.Engine, error) {
 	admin.PUT("/lessons/:code/timestamps", srv.putTimestamps)
 	admin.PUT("/lessons/:code/vocab", srv.putVocab)
 	admin.DELETE("/lessons/:code", srv.remove)
+	admin.GET("/stats", srv.stats)
 	srv.vocabRoutes(app, admin)
 	srv.aiRoutes(app)
 	srv.marksRoutes(app)

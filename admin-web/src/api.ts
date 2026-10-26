@@ -133,3 +133,12 @@ export type Topic = {
 export const listTopics = () => call<{ topics: Topic[]; server_error: string | null }>("GET", "/api/oxford");
 export const oxfordJob = (action: "fix" | "upload", codes: string[]) =>
   call<{ id: number }>("POST", `/api/oxford/${action}`, { codes });
+
+// ---- status ----
+export type ServerStats = {
+  rev: number; lessons: number; vocab_topics: number; articles: number; notebook: number; favorites: number; mastered: number;
+  ai: { configured: boolean; used_today: number; limit: number };
+  audio_bytes: number; disk_free_bytes?: number; dict?: { size: number };
+};
+export type Status = { online: boolean; error?: string; latency_ms?: number; server?: ServerStats; local_disk_free_bytes?: number };
+export const getStatus = () => call<Status>("GET", "/api/status");

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ArticlesPage } from "./ArticlesPage";
 import { DictPage } from "./DictPage";
 import { JobsPage } from "./JobsPage";
+import { StatusPage } from "./StatusPage";
 import { OxfordPage } from "./OxfordPage";
 import { LessonsPage } from "./LessonsPage";
 import { login, loginMessage, logout, me } from "./api";
@@ -61,7 +62,7 @@ function Login({ onDone }: { onDone: (user: string) => void }) {
 }
 
 function Home({ user, onOut }: { user: string; onOut: () => void }) {
-  const [tab, setTab] = useState<"home" | "lessons" | "articles" | "oxford" | "dict" | "jobs">("home");
+  const [tab, setTab] = useState<"home" | "lessons" | "articles" | "oxford" | "dict" | "status" | "jobs">("home");
   async function out() {
     await logout().catch(() => {});
     onOut();
@@ -76,15 +77,17 @@ function Home({ user, onOut }: { user: string; onOut: () => void }) {
           <button className={tab === "articles" ? "tab on" : "tab"} onClick={() => setTab("articles")}>文章</button>
           <button className={tab === "oxford" ? "tab on" : "tab"} onClick={() => setTab("oxford")}>牛津词汇</button>
           <button className={tab === "dict" ? "tab on" : "tab"} onClick={() => setTab("dict")}>字典</button>
+          <button className={tab === "status" ? "tab on" : "tab"} onClick={() => setTab("status")}>状态</button>
           <button className={tab === "jobs" ? "tab on" : "tab"} onClick={() => setTab("jobs")}>任务</button>
         </nav>
         <span>{user}</span>
         <button className="link" onClick={out}>退出</button>
       </header>
-      {tab === "home" && <p className="muted">现在有"听力""文章""牛津词汇""字典"和"任务"。</p>}
+      {tab === "home" && <p className="muted">做内容的几块都在了：听力、文章、牛津词汇、字典；还有状态和任务。</p>}
       {tab === "lessons" && <LessonsPage />}
       {tab === "articles" && <ArticlesPage />}
       {tab === "oxford" && <OxfordPage />}
+      {tab === "status" && <StatusPage />}
       {tab === "dict" && <DictPage />}
       {tab === "jobs" && <JobsPage />}
     </main>

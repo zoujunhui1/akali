@@ -74,6 +74,18 @@ func (c *Client) Articles(ctx context.Context) ([]Article, error) {
 	return list, nil
 }
 
+// Stats is the phone-facing server's own read-only numbers (counts, today's AI use, disk), as the server sent them.
+func (c *Client) Stats(ctx context.Context) (json.RawMessage, error) {
+	data, err := c.do(ctx, http.MethodGet, "/admin/stats", c.AdminToken)
+	if err != nil {
+		return nil, err
+	}
+	if !json.Valid(data) {
+		return nil, fmt.Errorf("GET /admin/stats: not json")
+	}
+	return data, nil
+}
+
 func (c *Client) DeleteArticle(ctx context.Context, code string) error {
 	_, err := c.do(ctx, http.MethodDelete, "/admin/articles/"+code, c.AdminToken)
 	return err
