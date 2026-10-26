@@ -23,6 +23,8 @@ type Config struct {
 	Articles *Articles
 	// Lessons turns on the listening lesson pages; nil leaves them out.
 	Lessons *Lessons
+	// Dict turns on the offline dictionary page; nil leaves it out.
+	Dict *Dict
 }
 
 type Server struct {
@@ -48,6 +50,9 @@ func New(cfg Config, a *auth.Service, j Jobs) (*gin.Engine, error) {
 	srv.jobRoutes(api.Group("", srv.requireSession()))
 	if cfg.Articles != nil {
 		srv.articleRoutes(api.Group("", srv.requireSession()))
+	}
+	if cfg.Dict != nil {
+		srv.dictRoutes(api.Group("", srv.requireSession()))
 	}
 	if cfg.Lessons != nil {
 		srv.lessonRoutes(api.Group("", srv.requireSession()))

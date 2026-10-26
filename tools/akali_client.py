@@ -84,6 +84,10 @@ class Client:
                 return None
             raise
 
+    def download_dict(self):
+        """The dictionary file the server holds."""
+        return self._call("GET", "/api/v1/dict/file", self.app)
+
     # ---- write (admin token) ----
     def put_lesson(self, code, title, source_url, transcript):
         self._put_json(f"/admin/lessons/{code}", {"title": title, "source_url": source_url, "transcript": transcript})

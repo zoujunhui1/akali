@@ -110,3 +110,12 @@ export const lessonAction = (code: string, action: "redo" | "upload") =>
   call<{ id: number }>("POST", `/api/lessons/${code}/${action}`, {});
 export const deleteLesson = (code: string) => call<{ id: number }>("DELETE", `/api/lessons/${code}`);
 export const updateVocab = (codes: string[]) => call<{ id: number }>("POST", "/api/lessons/vocab", { codes });
+
+// ---- offline dictionary ----
+export type DictStatus = {
+  local: { size: number; modified: number; sha256: string } | null;
+  server: { size: number; sha256: string } | null;
+  server_error: string | null;
+};
+export const dictStatus = () => call<DictStatus>("GET", "/api/dict");
+export const dictJob = (action: "build" | "compare" | "upload") => call<{ id: number }>("POST", `/api/dict/${action}`, {});

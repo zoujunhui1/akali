@@ -81,6 +81,11 @@ func main() {
 			ToolsDir: toolsDir,
 			WorkDir:  envOr("ADMIN_WORK_DIR", "/var/lib/akali-admin/work"),
 		},
+		Dict: &api.Dict{
+			Python:   envOr("ADMIN_PYTHON", toolsDir+"/venv/bin/python"),
+			ToolsDir: toolsDir,
+			Root:     envOr("ADMIN_DICT_DIR", "/var/lib/akali-admin/dict"),
+		},
 		Lessons: &api.Lessons{
 			Python:   envOr("ADMIN_PYTHON", toolsDir+"/venv/bin/python"),
 			ToolsDir: toolsDir,

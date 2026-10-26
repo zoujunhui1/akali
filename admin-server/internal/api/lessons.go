@@ -58,9 +58,14 @@ func (s *Server) listLessons(c *gin.Context) {
 
 func (s *Server) pythonJob(c *gin.Context, kind, title string, heavy bool, args []string) {
 	l := s.cfg.Lessons
+	s.runPython(c, l.Python, l.ToolsDir, kind, title, heavy, args)
+}
+
+// runPython queues a job that runs one of the Python tools and answers with the job's id.
+func (s *Server) runPython(c *gin.Context, python, dir, kind, title string, heavy bool, args []string) {
 	id, err := s.jobs.Runner.Submit(c.Request.Context(), jobs.Spec{Kind: kind, Title: title, Heavy: heavy},
 		func(ctx context.Context, run *jobs.Run) error {
-			return jobs.RunCommand(ctx, run, l.ToolsDir, l.Python, args...)
+			return jobs.RunCommand(ctx, run, dir, python, args...)
 		})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "server error"})
