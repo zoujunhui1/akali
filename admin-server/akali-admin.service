@@ -8,6 +8,7 @@ User=akali-admin
 Group=akali-admin
 EnvironmentFile=/etc/akali-admin/env
 Environment=GIN_MODE=release
+Environment=HF_HOME=/var/lib/akali-admin/cache
 ExecStart=/usr/local/bin/akali-admin
 Restart=on-failure
 RestartSec=3

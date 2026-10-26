@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clock, duration, isActive, statusText } from "./format";
+import { clock, duration, isActive, lessonSync, statusText } from "./format";
 
 describe("statusText", () => {
   it("names every status in Chinese", () => {
@@ -35,5 +35,18 @@ describe("duration", () => {
 describe("clock", () => {
   it("formats a time without throwing", () => {
     expect(clock("2026-01-01T09:00:00Z")).toContain("2026");
+  });
+});
+
+describe("lessonSync", () => {
+  const local = { audio: true, transcript: true, timestamps: 10, vocab: 3 };
+  it("tells missing, same and different apart", () => {
+    expect(lessonSync({ local, server: null })).toBe("unknown");
+    expect(lessonSync({ local, server: { present: false, audio: false, timestamps: 0, vocab: null } })).toBe("missing");
+    expect(lessonSync({ local, server: { present: true, audio: true, timestamps: 10, vocab: 3 } })).toBe("synced");
+    expect(lessonSync({ local, server: { present: true, audio: true, timestamps: 9, vocab: 3 } })).toBe("differs");
+  });
+  it("treats no vocab file and an empty one as the same", () => {
+    expect(lessonSync({ local: { ...local, vocab: null }, server: { present: true, audio: true, timestamps: 10, vocab: null } })).toBe("synced");
   });
 });

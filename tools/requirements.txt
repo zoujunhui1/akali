@@ -1,2 +1,5 @@
 trafilatura
 lxml_html_clean
+faster-whisper==1.2.1
+numpy
+beautifulsoup4

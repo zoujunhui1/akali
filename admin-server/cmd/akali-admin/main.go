@@ -81,6 +81,11 @@ func main() {
 			ToolsDir: toolsDir,
 			WorkDir:  envOr("ADMIN_WORK_DIR", "/var/lib/akali-admin/work"),
 		},
+		Lessons: &api.Lessons{
+			Python:   envOr("ADMIN_PYTHON", toolsDir+"/venv/bin/python"),
+			ToolsDir: toolsDir,
+			Library:  envOr("ADMIN_ELLLO_DIR", "/var/lib/akali-admin/elllo"),
+		},
 	}
 	handler, err := api.New(cfg, a, api.Jobs{Runner: runner, Store: st})
 	if err != nil {

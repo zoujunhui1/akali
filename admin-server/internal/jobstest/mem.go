@@ -115,3 +115,10 @@ func (m *Mem) Lines(id int64) []string {
 	}
 	return out
 }
+
+// Heavy reports whether the job was queued as a heavy one.
+func (m *Mem) Heavy(id int64) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.jobs[id].Heavy
+}

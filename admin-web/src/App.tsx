@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArticlesPage } from "./ArticlesPage";
 import { JobsPage } from "./JobsPage";
+import { LessonsPage } from "./LessonsPage";
 import { login, loginMessage, logout, me } from "./api";
 
 type State = { kind: "loading" } | { kind: "out" } | { kind: "in"; user: string };
@@ -58,7 +59,7 @@ function Login({ onDone }: { onDone: (user: string) => void }) {
 }
 
 function Home({ user, onOut }: { user: string; onOut: () => void }) {
-  const [tab, setTab] = useState<"home" | "articles" | "jobs">("home");
+  const [tab, setTab] = useState<"home" | "lessons" | "articles" | "jobs">("home");
   async function out() {
     await logout().catch(() => {});
     onOut();
@@ -69,13 +70,15 @@ function Home({ user, onOut }: { user: string; onOut: () => void }) {
         <h1>akali 后台</h1>
         <nav>
           <button className={tab === "home" ? "tab on" : "tab"} onClick={() => setTab("home")}>首页</button>
+          <button className={tab === "lessons" ? "tab on" : "tab"} onClick={() => setTab("lessons")}>听力</button>
           <button className={tab === "articles" ? "tab on" : "tab"} onClick={() => setTab("articles")}>文章</button>
           <button className={tab === "jobs" ? "tab on" : "tab"} onClick={() => setTab("jobs")}>任务</button>
         </nav>
         <span>{user}</span>
         <button className="link" onClick={out}>退出</button>
       </header>
-      {tab === "home" && <p className="muted">听力课、字典、牛津词汇会一块一块加进来。现在有"文章"和"任务"。</p>}
+      {tab === "home" && <p className="muted">字典、牛津词汇会一块一块加进来。现在有"听力""文章"和"任务"。</p>}
+      {tab === "lessons" && <LessonsPage />}
       {tab === "articles" && <ArticlesPage />}
       {tab === "jobs" && <JobsPage />}
     </main>

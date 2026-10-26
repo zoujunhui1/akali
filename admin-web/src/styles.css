@@ -47,3 +47,4 @@ tbody tr.on { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .ok { color: #2e9e5b; margin: 8px 0; }
 .small { font-size: 13px; }
 .drafts { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.actions { white-space: nowrap; display: flex; gap: 10px; flex-wrap: wrap; }

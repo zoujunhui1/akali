@@ -98,3 +98,15 @@ export async function waitForJob(id: number, delayMs = 1000): Promise<{ job: Job
     }
   }
 }
+
+// ---- listening lessons ----
+export type LocalState = { audio: boolean; transcript: boolean; timestamps: number; vocab: number | null };
+export type ServerState = { present: boolean; audio: boolean; timestamps: number; vocab: number | null };
+export type LessonRow = { code: string; title: string; local: LocalState; server: ServerState | null };
+
+export const listLessons = () => call<{ lessons: LessonRow[]; server_error: string | null }>("GET", "/api/lessons");
+export const processLesson = (url: string) => call<{ id: number }>("POST", "/api/lessons/process", { url });
+export const lessonAction = (code: string, action: "redo" | "upload") =>
+  call<{ id: number }>("POST", `/api/lessons/${code}/${action}`, {});
+export const deleteLesson = (code: string) => call<{ id: number }>("DELETE", `/api/lessons/${code}`);
+export const updateVocab = (codes: string[]) => call<{ id: number }>("POST", "/api/lessons/vocab", { codes });

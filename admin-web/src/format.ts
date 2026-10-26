@@ -1,4 +1,4 @@
-import type { Job } from "./api";
+import type { Job, LessonRow } from "./api";
 
 const TEXT: Record<Job["status"], string> = {
   queued: "排队中",
@@ -26,4 +26,13 @@ export function duration(job: Pick<Job, "startedAt" | "finishedAt">, now = Date.
 
 export function clock(iso: string): string {
   return new Date(iso).toLocaleString("zh-CN", { hour12: false });
+}
+
+// How a lesson on the server compares with the folder: not there, the same, or different.
+export function lessonSync(row: Pick<LessonRow, "local" | "server">): "unknown" | "missing" | "synced" | "differs" {
+  const s = row.server;
+  if (!s) return "unknown";
+  if (!s.present) return "missing";
+  const same = s.audio === row.local.audio && s.timestamps === row.local.timestamps && (s.vocab ?? 0) === (row.local.vocab ?? 0);
+  return same ? "synced" : "differs";
 }
