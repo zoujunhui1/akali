@@ -4,17 +4,19 @@ Each entry is located in the lesson's timestamps.json sentences: the example sen
 sentence, then the entry is searched inside it. Entries that can't be located are listed, not marked.
 
 Usage: python export_vocab.py <elllo_dir> [--report]
-Feishu credentials are read from the lark-mcp entry in ~/.claude.json (never printed or stored).
+Feishu credentials are read from the lark-mcp entry in ~/.claude.json (never printed or stored); the table is named by
+FEISHU_BITABLE_TOKEN and FEISHU_TABLE_ID in mac/.env.
 """
 import difflib
 import json
+import os
 import re
 import sys
 import urllib.request
 from pathlib import Path
 
-APP_TOKEN = "ZuupbLbfsayfxTsvmMpcnsOhngg"
-TABLE_ID = "tbl3cFh9pRNPUpAJ"
+from akali_client import load_env
+
 HOST = "https://open.feishu.cn/open-apis"
 
 IRREGULAR = {
@@ -40,6 +42,11 @@ def norm(text):
 
 
 def feishu_records():
+    load_env()
+    try:
+        app_token, table_id = os.environ["FEISHU_BITABLE_TOKEN"], os.environ["FEISHU_TABLE_ID"]
+    except KeyError as e:
+        raise SystemExit(f"missing setting {e}: set FEISHU_BITABLE_TOKEN and FEISHU_TABLE_ID in mac/.env")
     cfg = json.load(open(Path.home() / ".claude.json"))
     env = None
     stack = [cfg]
@@ -64,7 +71,7 @@ def feishu_records():
                  {"app_id": env["APP_ID"], "app_secret": env["APP_SECRET"]})["tenant_access_token"]
     items, page = [], ""
     while True:
-        url = f"{HOST}/bitable/v1/apps/{APP_TOKEN}/tables/{TABLE_ID}/records?page_size=500" + (f"&page_token={page}" if page else "")
+        url = f"{HOST}/bitable/v1/apps/{app_token}/tables/{table_id}/records?page_size=500" + (f"&page_token={page}" if page else "")
         data = call(url, token=token)["data"]
         items += [i["fields"] for i in data["items"]]
         if not data.get("has_more"):

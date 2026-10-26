@@ -1,7 +1,7 @@
 #!/bin/sh
 # Give the admin machine read access to the Feishu vocabulary table (used to make each lesson's vocab.json).
 # Run it yourself: ./admin-server/set-feishu.sh
-# The Feishu app id and secret come from the lark-mcp entry in ~/.claude.json, the table ids from mac/export_vocab.py.
+# The Feishu app id and secret come from the lark-mcp entry in ~/.claude.json, the table ids from mac/.env.
 # They go over ssh stdin straight into the admin machine's environment file; nothing is printed.
 set -e
 cd "$(dirname "$0")"
@@ -28,11 +28,11 @@ while stack:
         stack.extend(o)
 if not env:
     sys.exit("no lark-mcp entry in ~/.claude.json")
-src = Path("../mac/export_vocab.py").read_text(encoding="utf-8")
-app = re.search(r'^APP_TOKEN = "([^"]+)"', src, re.M)
-table = re.search(r'^TABLE_ID = "([^"]+)"', src, re.M)
+src = Path("../mac/.env").read_text(encoding="utf-8")
+app = re.search(r'^FEISHU_BITABLE_TOKEN="?([^"\n]+)"?', src, re.M)
+table = re.search(r'^FEISHU_TABLE_ID="?([^"\n]+)"?', src, re.M)
 if not (app and table):
-    sys.exit("table ids not found in mac/export_vocab.py")
+    sys.exit("FEISHU_BITABLE_TOKEN / FEISHU_TABLE_ID not found in mac/.env")
 print(f"FEISHU_APP_ID={env['APP_ID']}")
 print(f"FEISHU_APP_SECRET={env['APP_SECRET']}")
 print(f"FEISHU_BITABLE_TOKEN={app.group(1)}")
