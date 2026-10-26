@@ -16,7 +16,7 @@ if [ -z "$DEEPSEEK_KEY" ]; then
 fi
 [ -n "$DEEPSEEK_KEY" ] || { echo "no key given"; exit 1; }
 # the key travels over ssh stdin, so it never shows up in a command line or process list
-printf '%s\n' "$DEEPSEEK_KEY" | ssh -i ~/.ssh/id_rsa -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" '
+printf '%s\n' "$DEEPSEEK_KEY" | ssh -i "${DEPLOY_KEY:-$HOME/.ssh/id_rsa}" -o BatchMode=yes "$DEPLOY_USER@$DEPLOY_HOST" '
   read -r KEY
   sudo sed -i "/^AKALI_AI_KEY=/d" /etc/akali/env
   printf "AKALI_AI_KEY=%s\n" "$KEY" | sudo tee -a /etc/akali/env >/dev/null

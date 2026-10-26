@@ -1,0 +1,21 @@
+CREATE TABLE admin_user (
+	username VARCHAR(64) PRIMARY KEY,
+	password_hash VARCHAR(100) NOT NULL,
+	updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+) CHARACTER SET utf8mb4;
+
+CREATE TABLE sessions (
+	id CHAR(64) PRIMARY KEY,
+	username VARCHAR(64) NOT NULL,
+	ip VARCHAR(64) NOT NULL,
+	created_at DATETIME(3) NOT NULL,
+	expires_at DATETIME(3) NOT NULL,
+	KEY idx_expires (expires_at)
+) CHARACTER SET utf8mb4;
+
+CREATE TABLE login_attempts (
+	key_name VARCHAR(100) PRIMARY KEY,
+	failures INT NOT NULL,
+	locked_until DATETIME(3) NULL,
+	last_failure DATETIME(3) NOT NULL
+) CHARACTER SET utf8mb4;

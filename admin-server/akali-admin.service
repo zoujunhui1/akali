@@ -1,0 +1,21 @@
+[Unit]
+Description=akali admin backend
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+User=akali-admin
+Group=akali-admin
+EnvironmentFile=/etc/akali-admin/env
+Environment=GIN_MODE=release
+ExecStart=/usr/local/bin/akali-admin
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/akali-admin
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+CREATE TABLE jobs (
+	id BIGINT AUTO_INCREMENT PRIMARY KEY,
+	kind VARCHAR(40) NOT NULL,
+	title VARCHAR(200) NOT NULL,
+	heavy TINYINT(1) NOT NULL DEFAULT 0,
+	status VARCHAR(16) NOT NULL,
+	params JSON NULL,
+	error TEXT NULL,
+	created_at DATETIME(3) NOT NULL,
+	started_at DATETIME(3) NULL,
+	finished_at DATETIME(3) NULL,
+	KEY idx_created (created_at)
+) CHARACTER SET utf8mb4;
+
+CREATE TABLE job_logs (
+	id BIGINT AUTO_INCREMENT PRIMARY KEY,
+	job_id BIGINT NOT NULL,
+	at DATETIME(3) NOT NULL,
+	line VARCHAR(2000) NOT NULL,
+	KEY idx_job (job_id, id)
+) CHARACTER SET utf8mb4;

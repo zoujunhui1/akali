@@ -1,0 +1,14 @@
+[Unit]
+Description=keep the machine from looking idle
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/keepalive/keepalive.py
+Restart=always
+RestartSec=5
+Nice=19
+MemoryMax=3200M
+CPUWeight=1
+
+[Install]
+WantedBy=multi-user.target
