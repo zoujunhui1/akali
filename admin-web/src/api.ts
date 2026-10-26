@@ -119,3 +119,17 @@ export type DictStatus = {
 };
 export const dictStatus = () => call<DictStatus>("GET", "/api/dict");
 export const dictJob = (action: "build" | "compare" | "upload") => call<{ id: number }>("POST", `/api/dict/${action}`, {});
+
+// ---- picture dictionary (Oxford) ----
+export type Topic = {
+  code: string;
+  title: string;
+  entries: number;
+  pages: number;
+  gaps: number;
+  fixes: number;
+  server: "missing" | "synced" | "differs" | null;
+};
+export const listTopics = () => call<{ topics: Topic[]; server_error: string | null }>("GET", "/api/oxford");
+export const oxfordJob = (action: "fix" | "upload", codes: string[]) =>
+  call<{ id: number }>("POST", `/api/oxford/${action}`, { codes });

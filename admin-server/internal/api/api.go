@@ -25,6 +25,8 @@ type Config struct {
 	Lessons *Lessons
 	// Dict turns on the offline dictionary page; nil leaves it out.
 	Dict *Dict
+	// Oxford turns on the picture dictionary page; nil leaves it out.
+	Oxford *Oxford
 }
 
 type Server struct {
@@ -50,6 +52,9 @@ func New(cfg Config, a *auth.Service, j Jobs) (*gin.Engine, error) {
 	srv.jobRoutes(api.Group("", srv.requireSession()))
 	if cfg.Articles != nil {
 		srv.articleRoutes(api.Group("", srv.requireSession()))
+	}
+	if cfg.Oxford != nil {
+		srv.oxfordRoutes(api.Group("", srv.requireSession()))
 	}
 	if cfg.Dict != nil {
 		srv.dictRoutes(api.Group("", srv.requireSession()))

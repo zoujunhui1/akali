@@ -3,3 +3,5 @@ lxml_html_clean
 faster-whisper==1.2.1
 numpy
 beautifulsoup4
+kokoro-onnx==0.4.7
+soundfile

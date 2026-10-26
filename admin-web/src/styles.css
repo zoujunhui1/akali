@@ -48,3 +48,4 @@ tbody tr.on { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .small { font-size: 13px; }
 .drafts { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .actions { white-space: nowrap; display: flex; gap: 10px; flex-wrap: wrap; }
+.inline { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
