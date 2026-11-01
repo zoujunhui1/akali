@@ -56,6 +56,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.DisposableEffect
+import com.zjh.akali.ui.reading.ReadingText
+import com.zjh.akali.ui.reading.ReadingViewModel
+import com.zjh.akali.ui.reading.SentenceSheet
+import com.zjh.akali.ui.reading.WordCard
+import com.zjh.akali.ui.reading.FAVORITE_COLOR
+import com.zjh.akali.ui.reading.WORD_PATTERN
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -96,7 +110,7 @@ private fun modeIcon(mode: PlayMode): ImageVector = when (mode) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlayerScreen(vm: MainViewModel, onBack: () -> Unit) {
+fun PlayerScreen(vm: MainViewModel, readingVm: ReadingViewModel, onBack: () -> Unit) {
     val ps by vm.player.state.collectAsStateWithLifecycle()
     val lessons by vm.lessons.collectAsStateWithLifecycle()
     val showTranscript by vm.showTranscript.collectAsStateWithLifecycle()
@@ -109,6 +123,27 @@ fun PlayerScreen(vm: MainViewModel, onBack: () -> Unit) {
     val currentIndex = Timestamps.indexAt(sentences, ps.positionMs)
 
     popup?.let { MarkSheet(it, onDismiss = { popup = null }) }
+    val favorites by readingVm.favoriteKeys.collectAsStateWithLifecycle()
+    var pick by remember { mutableStateOf<ListenPick?>(null) }
+    var sentenceHelpFor by remember { mutableStateOf<String?>(null) }
+    // 弹出查词卡片或讲解面板时先暂停，看完你自己点播放
+    val openLookup = { block: () -> Unit ->
+        if (ps.playWhenReady) vm.player.pause()
+        block()
+    }
+    DisposableEffect(Unit) { onDispose { readingVm.clearWordHelp(); readingVm.clearSentenceHelp() } }
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) { readingVm.messages.collect { snackbar.showSnackbar(it) } }
+    pick?.let { p ->
+        WordCard(
+            vm = readingVm, sourceCode = lesson?.code.orEmpty(), token = p.token, sentence = p.sentence, askNow = false, anchor = p.anchor,
+            onSentence = { sentenceHelpFor = p.sentence; pick = null },
+            onClose = { pick = null; readingVm.clearWordHelp() },
+        )
+    }
+    sentenceHelpFor?.let { text ->
+        SentenceSheet(vm = readingVm, sentence = text, onClose = { sentenceHelpFor = null; readingVm.clearSentenceHelp() })
+    }
     var showSleep by remember { mutableStateOf(false) }
     if (showSleep) {
         SleepSheet(
@@ -120,6 +155,7 @@ fun PlayerScreen(vm: MainViewModel, onBack: () -> Unit) {
 
     Scaffold(
         containerColor = colors.background,
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 title = {},
@@ -166,8 +202,15 @@ fun PlayerScreen(vm: MainViewModel, onBack: () -> Unit) {
                                 sentences = sentences,
                                 currentIndex = currentIndex,
                                 marks = marks,
+                                favorites = favorites,
+                                keyOf = readingVm::keyOf,
+                                pickedWord = pick?.takeIf { it.lessonId == lesson.id },
                                 onMarkClick = { popup = it },
                                 onClick = vm.player::playSentence,
+                                onWord = { index, range, text, anchor ->
+                                    openLookup { pick = ListenPick(lesson.id, index, range, text.substring(range.first, range.last + 1), text, anchor) }
+                                },
+                                onTranslate = { text -> openLookup { sentenceHelpFor = text } },
                                 modifier = Modifier.weight(1f),
                             )
                         } else if (showTranscript) {
@@ -345,13 +388,24 @@ private fun DrawScope.drawHighlights(layout: TextLayoutResult, boxes: List<Highl
     }
 }
 
+/** 长按选中的一个词：所在课、所在句子序号、词在句子里的位置、词、整句、词在窗口里的位置（小卡片贴着它弹出）。 */
+private class ListenPick(val lessonId: Long, val index: Int, val range: IntRange, val token: String, val sentence: String, val anchor: Rect)
+
+private val TEXT_PAD_H = 10.dp
+private val TEXT_PAD_V = 8.dp
+
 @Composable
 private fun SentenceList(
     sentences: List<Sentence>,
     currentIndex: Int,
     marks: List<VocabMark>,
+    favorites: Set<String>,
+    keyOf: (String) -> String,
+    pickedWord: ListenPick?,
     onMarkClick: (List<VocabMark>) -> Unit,
     onClick: (Int) -> Unit,
+    onWord: (index: Int, range: IntRange, text: String, anchor: Rect) -> Unit,
+    onTranslate: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -380,9 +434,16 @@ private fun SentenceList(
                     }
                 }
             }
+            val picked = pickedWord?.takeIf { it.index == i }?.range
             // 底色自己画：每行一块、上下留缝，词组跨行时不会和上下行的底色贴在一起
-            val boxes = remember(inSentence, markColors, s.text, sentenceMarks.isNotEmpty()) {
+            val boxes = remember(inSentence, markColors, s.text, sentenceMarks.isNotEmpty(), favorites, picked) {
                 buildList {
+                    // 你收藏的词：淡黄色，铺在最底下
+                    if (favorites.isNotEmpty()) {
+                        for (m in WORD_PATTERN.findAll(s.text)) {
+                            if (keyOf(m.value) in favorites) add(HighlightBox(m.range.first, m.range.last + 1, FAVORITE_COLOR))
+                        }
+                    }
                     // 先铺词组，再铺单词，重叠时单词盖在词组上
                     inSentence.filter { it.second.type == MarkType.Phrase }.forEach { (r, m) ->
                         add(HighlightBox(r.first, r.last + 1, markColors.of(m.type).copy(alpha = 0.22f)))
@@ -393,37 +454,63 @@ private fun SentenceList(
                     if (sentenceMarks.isNotEmpty()) {
                         add(HighlightBox(s.text.length + 2, s.text.length + 4 + SENTENCE_CHIP.length, markColors.sentence.copy(alpha = 0.16f)))
                     }
+                    picked?.let { add(HighlightBox(it.first, it.last + 1, colors.primary.copy(alpha = 0.3f))) }
                 }
             }
             var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-            Text(
-                text,
-                fontSize = 18.sp,
-                lineHeight = 28.sp,
-                fontWeight = if (i == currentIndex) FontWeight.SemiBold else FontWeight.Normal,
-                color = if (i == currentIndex) colors.onSurface else colors.onSurface.copy(alpha = 0.72f),
-                onTextLayout = { layout = it },
-                modifier = Modifier
+            var coords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+            Row(
+                Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(if (i == currentIndex) colors.primary.copy(alpha = 0.14f) else colors.surface)
-                    .pointerInput(inSentence) {
-                        detectTapGestures { pos ->
-                            val offset = layout?.getOffsetForPosition(pos)
-                            val hit = offset?.let { o ->
-                                inSentence.filter { it.second.type != MarkType.Sentence && o in it.first }.map { it.second }
-                            }.orEmpty()
-                            when {
-                                hit.isNotEmpty() -> onMarkClick(hit)
-                                offset != null && offset >= s.text.length + 2 && sentenceMarks.isNotEmpty() -> onMarkClick(sentenceMarks)
-                                else -> onClick(i)
-                            }
+                    .background(if (i == currentIndex) colors.primary.copy(alpha = 0.14f) else colors.surface),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Text(
+                    text,
+                    fontSize = 18.sp,
+                    lineHeight = 28.sp,
+                    fontWeight = if (i == currentIndex) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (i == currentIndex) colors.onSurface else colors.onSurface.copy(alpha = 0.72f),
+                    onTextLayout = { layout = it },
+                    modifier = Modifier
+                        .weight(1f)
+                        .pointerInput(inSentence, s.text) {
+                            // 点的位置要减去下面的内边距，才是文字里的位置
+                            val pad = Offset(TEXT_PAD_H.toPx(), TEXT_PAD_V.toPx())
+                            detectTapGestures(
+                                onLongPress = { pos ->
+                                    val l = layout ?: return@detectTapGestures
+                                    val offset = l.getOffsetForPosition(pos - pad)
+                                    val word = if (offset < s.text.length) ReadingText.wordAt(s.text, offset) else null
+                                    if (word != null) {
+                                        val box = l.getPathForRange(word.first, word.last + 1).getBounds()
+                                        val origin = coords?.takeIf { it.isAttached }?.positionInWindow() ?: Offset.Zero
+                                        onWord(i, word, s.text, box.translate(origin))
+                                    }
+                                },
+                                onTap = { pos ->
+                                    val offset = layout?.getOffsetForPosition(pos - pad)
+                                    val hit = offset?.let { o ->
+                                        inSentence.filter { it.second.type != MarkType.Sentence && o in it.first }.map { it.second }
+                                    }.orEmpty()
+                                    when {
+                                        hit.isNotEmpty() -> onMarkClick(hit)
+                                        offset != null && offset >= s.text.length + 2 && sentenceMarks.isNotEmpty() -> onMarkClick(sentenceMarks)
+                                        else -> onClick(i)
+                                    }
+                                },
+                            )
                         }
-                    }
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
-                    // 放在内边距之后，画的位置才和文字对得上
-                    .drawBehind { layout?.let { drawHighlights(it, boxes) } },
-            )
+                        .padding(horizontal = TEXT_PAD_H, vertical = TEXT_PAD_V)
+                        // 放在内边距之后，画的位置才和文字对得上
+                        .onGloballyPositioned { coords = it }
+                        .drawBehind { layout?.let { drawHighlights(it, boxes) } },
+                )
+                IconButton(onClick = { onTranslate(s.text) }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Rounded.Translate, "讲这一句", tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                }
+            }
         }
         item { Spacer(Modifier.height(12.dp)) }
     }

@@ -153,7 +153,7 @@ private fun AkaliRoot(vm: MainViewModel) {
             },
         ) {
             composable("list") { ListScreen(vm = vm, onOpenPlayer = { nav.navigate("player") }) }
-            composable("player") { PlayerScreen(vm, onBack = { nav.popBackStack() }) }
+            composable("player") { PlayerScreen(vm, readingVm, onBack = { nav.popBackStack() }) }
             composable("settings") { SettingsScreen(vm, readingVm) }
             composable("reading") {
                 ReadingListScreen(readingVm, onOpen = { nav.navigate("reading/$it") }, onOpenNotebook = { nav.navigate("notebook") })

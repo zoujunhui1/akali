@@ -113,8 +113,8 @@ private data class Passage(val paragraph: Int, val range: IntRange, val text: St
 private const val MAX_PASSAGE = 1200
 
 /** 收藏着（不会）的词的底色：淡黄，深浅色模式下都看得清 */
-private val FAVORITE_COLOR = Color(0xFFFFC107).copy(alpha = 0.38f)
-private val WORD_PATTERN = Regex("\\p{L}[\\p{L}'’-]*")
+internal val FAVORITE_COLOR = Color(0xFFFFC107).copy(alpha = 0.38f)
+internal val WORD_PATTERN = Regex("\\p{L}[\\p{L}'’-]*")
 
 private val FONT_SIZES = listOf(16, 18, 20, 22, 24)
 
@@ -245,7 +245,7 @@ fun ArticleScreen(vm: ReadingViewModel, code: String, onBack: () -> Unit) {
             pick?.let { p ->
                 val sentence = paragraphs[p.paragraph][p.sentence]
                 WordCard(
-                    vm = vm, article = a, token = p.token, sentence = sentence, askNow = askNow, anchor = p.anchor,
+                    vm = vm, sourceCode = a.code, token = p.token, sentence = sentence, askNow = askNow, anchor = p.anchor,
                     onSentence = {
                         val r = joined[p.paragraph].ranges[p.sentence]
                         passage = Passage(p.paragraph, r, paragraphs[p.paragraph][p.sentence]); pick = null
@@ -348,8 +348,8 @@ private class CardPosition(private val anchor: Rect, private val gapPx: Int, pri
 
 /** 点“查字典”或“AI 讲解”后贴着词弹出的小卡片：词和爱心、音标和发音、中文意思、右下角 AI 按钮。 */
 @Composable
-private fun WordCard(
-    vm: ReadingViewModel, article: Article, token: String, sentence: String, askNow: Boolean, anchor: Rect,
+internal fun WordCard(
+    vm: ReadingViewModel, sourceCode: String, token: String, sentence: String, askNow: Boolean, anchor: Rect,
     onSentence: () -> Unit, onClose: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -375,7 +375,7 @@ private fun WordCard(
                             if (saved) vm.unfavorite(token)
                             else {
                                 val meaning = (help as? Help.Ready)?.value?.zh ?: entry?.meaningLines?.firstOrNull().orEmpty()
-                                vm.addToNotebook(token, sentence, article.code, meaning.take(200))
+                                vm.addToNotebook(token, sentence, sourceCode, meaning.take(200))
                             }
                         },
                     ) {
@@ -497,7 +497,7 @@ internal fun MeaningRow(line: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SentenceSheet(vm: ReadingViewModel, sentence: String, onClose: () -> Unit) {
+internal fun SentenceSheet(vm: ReadingViewModel, sentence: String, onClose: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val help by vm.sentenceHelp.collectAsStateWithLifecycle()
     LaunchedEffect(sentence) { vm.askSentence(sentence) }

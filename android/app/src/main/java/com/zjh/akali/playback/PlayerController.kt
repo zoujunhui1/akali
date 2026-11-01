@@ -152,6 +152,8 @@ class PlayerController(private val context: Context, private val prefs: Prefs) {
         }
     }
 
+    fun pause() = withController { it.pause() }
+
     fun seekTo(ms: Long) = withController {
         var target = ms
         if (_state.value.loopSentence) {
