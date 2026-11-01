@@ -39,6 +39,10 @@ data class PlayerUiState(
     val speed: Float = 1f,
     /** 单句循环是否开启 */
     val loopSentence: Boolean = false,
+    /** 定时关闭到点的时刻（System.currentTimeMillis），没有定时为 0 */
+    val sleepAtMs: Long = 0,
+    /** 定时关闭设成了“听完这课” */
+    val sleepEndOfLesson: Boolean = false,
 )
 
 /** 界面这一侧的播放器遥控器：通过 MediaController 连接 PlaybackService。 */
@@ -53,13 +57,26 @@ class PlayerController(private val context: Context, private val prefs: Prefs) {
     /** 当前这课的逐句时间戳，由界面在课程变化时设置；没有则为空。 */
     private var sentences: List<Sentence> = emptyList()
 
+    private val controllerListener = object : MediaController.Listener {
+        override fun onExtrasChanged(controller: MediaController, extras: Bundle) = publishSleep(extras)
+    }
+
+    private fun publishSleep(extras: Bundle) {
+        _state.update {
+            it.copy(
+                sleepAtMs = extras.getLong(EXTRA_SLEEP_AT_MS),
+                sleepEndOfLesson = extras.getBoolean(EXTRA_SLEEP_END_LESSON),
+            )
+        }
+    }
+
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) = publish(player)
     }
 
     init {
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
-        val future = MediaController.Builder(context, token).buildAsync()
+        val future = MediaController.Builder(context, token).setListener(controllerListener).buildAsync()
         future.addListener({
             val c = future.get()
             controller = c
@@ -67,6 +84,7 @@ class PlayerController(private val context: Context, private val prefs: Prefs) {
             applyMode(c, prefs.playMode)
             c.setPlaybackSpeed(prefs.speed)
             publish(c)
+            publishSleep(c.sessionExtras)
             while (pending.isNotEmpty()) pending.removeFirst().invoke(c)
         }, ContextCompat.getMainExecutor(context))
 
@@ -203,6 +221,12 @@ class PlayerController(private val context: Context, private val prefs: Prefs) {
     fun previous() = withController {
         it.seekToPreviousMediaItem()
         it.play()
+    }
+
+    /** 定时关闭：minutes > 0 是多少分钟后暂停，[SLEEP_END_OF_LESSON] 是听完当前这课，0 取消。 */
+    fun setSleepTimer(minutes: Int) = withController { c ->
+        val args = Bundle().apply { putInt(ARG_SLEEP_MINUTES, minutes) }
+        c.sendCustomCommand(SessionCommand(COMMAND_SLEEP_TIMER, Bundle.EMPTY), args)
     }
 
     fun setMode(mode: PlayMode) {

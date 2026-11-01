@@ -30,6 +30,15 @@ const val COMMAND_LOOP_RANGE = "akali.loop_range"
 const val ARG_START_MS = "start_ms"
 const val ARG_END_MS = "end_ms"
 
+/** 界面发给服务的定时关闭命令：minutes > 0 是多少分钟后暂停，[SLEEP_END_OF_LESSON] 是听完当前这课就停，0 取消。 */
+const val COMMAND_SLEEP_TIMER = "akali.sleep_timer"
+const val ARG_SLEEP_MINUTES = "sleep_minutes"
+const val SLEEP_END_OF_LESSON = -1
+
+/** 服务通过会话附加信息告诉界面定时的状态：到点的时刻（System.currentTimeMillis，没有定时为 0）和是否“听完这课”。 */
+const val EXTRA_SLEEP_AT_MS = "sleep_at_ms"
+const val EXTRA_SLEEP_END_LESSON = "sleep_end_lesson"
+
 /**
  * 持有播放器的前台服务，独立于界面。退出界面后继续播放，锁屏和通知栏可控制。
  * 每课播完会暂停，停 2 秒后再继续下一课（或重复本课）。
@@ -39,6 +48,8 @@ class PlaybackService : MediaSessionService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var gapJob: Job? = null
     private var loopMessage: PlayerMessage? = null
+    private var sleepJob: Job? = null
+    private var sleepAtLessonEnd = false
 
     override fun onCreate() {
         super.onCreate()
@@ -69,6 +80,33 @@ class PlaybackService : MediaSessionService() {
             .send()
     }
 
+    /** 定时关闭：到点就暂停；“听完这课”则这课播完后不再接着放。放在服务里，退出界面、锁屏后照常生效。 */
+    private fun setSleep(player: ExoPlayer, minutes: Int) {
+        sleepJob?.cancel()
+        sleepJob = null
+        sleepAtLessonEnd = minutes == SLEEP_END_OF_LESSON
+        var at = 0L
+        if (minutes > 0) {
+            val ms = minutes * 60_000L
+            at = System.currentTimeMillis() + ms
+            sleepJob = scope.launch {
+                delay(ms)
+                sleepJob = null
+                gapJob?.cancel()
+                player.pause()
+                publishSleep(0L, false)
+            }
+        }
+        publishSleep(at, sleepAtLessonEnd)
+    }
+
+    private fun publishSleep(atMs: Long, endOfLesson: Boolean) {
+        session?.setSessionExtras(Bundle().apply {
+            putLong(EXTRA_SLEEP_AT_MS, atMs)
+            putBoolean(EXTRA_SLEEP_END_LESSON, endOfLesson)
+        })
+    }
+
     private fun clearLoop() {
         loopMessage?.cancel()
         loopMessage = null
@@ -78,6 +116,7 @@ class PlaybackService : MediaSessionService() {
         override fun onConnect(session: MediaSession, controller: MediaSession.ControllerInfo): MediaSession.ConnectionResult {
             val commands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
                 .add(SessionCommand(COMMAND_LOOP_RANGE, Bundle.EMPTY))
+                .add(SessionCommand(COMMAND_SLEEP_TIMER, Bundle.EMPTY))
                 .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session).setAvailableSessionCommands(commands).build()
         }
@@ -92,6 +131,10 @@ class PlaybackService : MediaSessionService() {
                 setLoop(player, args.getLong(ARG_START_MS), args.getLong(ARG_END_MS))
                 return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
             }
+            if (customCommand.customAction == COMMAND_SLEEP_TIMER) {
+                setSleep(player, args.getInt(ARG_SLEEP_MINUTES))
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            }
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
         }
     }
@@ -103,6 +146,11 @@ class PlaybackService : MediaSessionService() {
                 return
             }
             if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM) {
+                if (sleepAtLessonEnd) {
+                    sleepAtLessonEnd = false
+                    publishSleep(0L, false)
+                    return
+                }
                 val continues = player.repeatMode == Player.REPEAT_MODE_ONE || player.hasNextMediaItem()
                 if (continues) {
                     gapJob?.cancel()
@@ -133,6 +181,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         clearLoop()
+        sleepJob?.cancel()
         scope.cancel()
         session?.run {
             player.release()

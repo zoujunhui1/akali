@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.Pause
@@ -55,6 +56,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
@@ -74,6 +80,8 @@ import com.zjh.akali.data.Sentence
 import com.zjh.akali.data.Timestamps
 import com.zjh.akali.ui.MainViewModel
 import com.zjh.akali.ui.formatTime
+import com.zjh.akali.playback.SLEEP_END_OF_LESSON
+import kotlinx.coroutines.delay
 
 private val SPEEDS = listOf(0.75f, 1f)
 
@@ -101,6 +109,14 @@ fun PlayerScreen(vm: MainViewModel, onBack: () -> Unit) {
     val currentIndex = Timestamps.indexAt(sentences, ps.positionMs)
 
     popup?.let { MarkSheet(it, onDismiss = { popup = null }) }
+    var showSleep by remember { mutableStateOf(false) }
+    if (showSleep) {
+        SleepSheet(
+            active = ps.sleepAtMs > 0 || ps.sleepEndOfLesson,
+            onPick = { vm.player.setSleepTimer(it); showSleep = false },
+            onDismiss = { showSleep = false },
+        )
+    }
 
     Scaffold(
         containerColor = colors.background,
@@ -109,6 +125,9 @@ fun PlayerScreen(vm: MainViewModel, onBack: () -> Unit) {
                 title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回") }
+                },
+                actions = {
+                    SleepButton(ps.sleepAtMs, ps.sleepEndOfLesson, onClick = { showSleep = true })
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.background),
             )
@@ -229,6 +248,54 @@ fun PlayerScreen(vm: MainViewModel, onBack: () -> Unit) {
     }
 }
 
+/** 顶栏的定时按钮：没定时只显示图标，定了就在旁边显示剩余时间或“听完这课”。 */
+@Composable
+private fun SleepButton(sleepAtMs: Long, endOfLesson: Boolean, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(sleepAtMs) {
+        while (sleepAtMs > 0) {
+            now = System.currentTimeMillis()
+            delay(1000)
+        }
+    }
+    val label = when {
+        endOfLesson -> "听完这课"
+        sleepAtMs > 0 -> formatTime((sleepAtMs - now).coerceAtLeast(0))
+        else -> null
+    }
+    TextButton(onClick = onClick) {
+        Icon(Icons.Rounded.Bedtime, "定时关闭", Modifier.size(22.dp), tint = if (label != null) colors.primary else colors.onSurfaceVariant)
+        if (label != null) {
+            Spacer(Modifier.size(6.dp))
+            Text(label, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+private val SLEEP_CHOICES = listOf(15 to "15 分钟", 30 to "30 分钟", 45 to "45 分钟", 60 to "60 分钟", SLEEP_END_OF_LESSON to "听完这课")
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SleepSheet(active: Boolean, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 28.dp)) {
+            Text("定时关闭", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            for ((minutes, label) in SLEEP_CHOICES) {
+                TextButton(onClick = { onPick(minutes) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(label, fontSize = 17.sp, modifier = Modifier.fillMaxWidth())
+                }
+            }
+            if (active) {
+                TextButton(onClick = { onPick(0) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("取消定时", fontSize = 17.sp, color = MaterialTheme.colorScheme.error, modifier = Modifier.fillMaxWidth())
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun LabeledButton(label: String, onClick: () -> Unit, content: @Composable () -> Unit) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -250,7 +317,33 @@ private fun MarkColors.of(type: MarkType) = when (type) {
     MarkType.Sentence -> sentence
 }
 
-private const val SENTENCE_CHIP = "句型"
+// 两个字中间和前后空格不许换行，免得标签被拆到两行
+private const val SENTENCE_CHIP = "句\u2060型"
+
+private class HighlightBox(val start: Int, val end: Int, val color: Color)
+
+/** 每一行画一块圆角底色，上下各缩进一点，相邻两行的底色之间留出缝。 */
+private fun DrawScope.drawHighlights(layout: TextLayoutResult, boxes: List<HighlightBox>) {
+    val inset = 3.dp.toPx()
+    val radius = CornerRadius(4.dp.toPx())
+    val last = layout.layoutInput.text.length
+    for (b in boxes) {
+        val start = b.start.coerceIn(0, last)
+        val end = b.end.coerceIn(0, last)
+        if (end <= start) continue
+        for (line in layout.getLineForOffset(start)..layout.getLineForOffset(end - 1)) {
+            val left = if (line == layout.getLineForOffset(start)) layout.getHorizontalPosition(start, true) else layout.getLineLeft(line)
+            val right = if (line == layout.getLineForOffset(end - 1)) layout.getHorizontalPosition(end, true) else layout.getLineRight(line)
+            if (right <= left) continue
+            drawRoundRect(
+                b.color,
+                topLeft = Offset(left, layout.getLineTop(line) + inset),
+                size = Size(right - left, layout.getLineBottom(line) - layout.getLineTop(line) - 2 * inset),
+                cornerRadius = radius,
+            )
+        }
+    }
+}
 
 @Composable
 private fun SentenceList(
@@ -279,18 +372,26 @@ private fun SentenceList(
             val text = remember(inSentence, markColors) {
                 buildAnnotatedString {
                     append(s.text)
+                    if (sentenceMarks.isNotEmpty()) {
+                        append("\u00A0\u00A0")
+                        withStyle(SpanStyle(color = markColors.sentence, fontWeight = FontWeight.Bold)) {
+                            append("\u00A0$SENTENCE_CHIP\u00A0")
+                        }
+                    }
+                }
+            }
+            // 底色自己画：每行一块、上下留缝，词组跨行时不会和上下行的底色贴在一起
+            val boxes = remember(inSentence, markColors, s.text, sentenceMarks.isNotEmpty()) {
+                buildList {
                     // 先铺词组，再铺单词，重叠时单词盖在词组上
                     inSentence.filter { it.second.type == MarkType.Phrase }.forEach { (r, m) ->
-                        addStyle(SpanStyle(background = markColors.of(m.type).copy(alpha = 0.22f)), r.first, r.last + 1)
+                        add(HighlightBox(r.first, r.last + 1, markColors.of(m.type).copy(alpha = 0.22f)))
                     }
                     inSentence.filter { it.second.type == MarkType.Word }.forEach { (r, m) ->
-                        addStyle(SpanStyle(background = markColors.of(m.type).copy(alpha = 0.28f)), r.first, r.last + 1)
+                        add(HighlightBox(r.first, r.last + 1, markColors.of(m.type).copy(alpha = 0.28f)))
                     }
                     if (sentenceMarks.isNotEmpty()) {
-                        append("  ")
-                        withStyle(SpanStyle(color = markColors.sentence, fontWeight = FontWeight.Bold, background = markColors.sentence.copy(alpha = 0.16f))) {
-                            append(" $SENTENCE_CHIP ")
-                        }
+                        add(HighlightBox(s.text.length + 2, s.text.length + 4 + SENTENCE_CHIP.length, markColors.sentence.copy(alpha = 0.16f)))
                     }
                 }
             }
@@ -319,7 +420,9 @@ private fun SentenceList(
                             }
                         }
                     }
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    // 放在内边距之后，画的位置才和文字对得上
+                    .drawBehind { layout?.let { drawHighlights(it, boxes) } },
             )
         }
         item { Spacer(Modifier.height(12.dp)) }
